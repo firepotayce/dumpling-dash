@@ -177,7 +177,7 @@
     <button class="link" id="bGhost">Ghost race: off</button>
     <button class="link" id="bFriend">Race a friend's run</button>
     <button class="link" id="bPass">Pass &amp; play</button>
-    <a class="link" id="bHub" href="../" style="text-decoration:none;display:inline-block">← Arcade</a>
+    <a class="link" id="bHub" href="#" hidden style="text-decoration:none;display:inline-block">← Arcade</a>
     <div class="seedline" id="seedTxt"></div>
   </div>
 
@@ -281,8 +281,9 @@
    STAFF PANEL: tap the menu logo 5×. Default PIN 1357.
    ========================================================================= */
 const CONFIG={
+  HUB_URL:'',              // set this only once an arcade hub page exists
   GAME:'dumpling',         // this game's id — every game in the arcade needs a unique one
-  API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',              // <-- https://script.google.com/macros/s/AKfy.../exec
+  API_URL:'',              // <-- https://script.google.com/macros/s/AKfy.../exec
   API_KEY:'firepot-2026',  // <-- must match SECRET in the Apps Script
   VENUE:'Stafford',
   DEFAULT_PIN:'1357',
@@ -295,7 +296,7 @@ const CONFIG={
 
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.getElementById('stage');
 const $=id=>document.getElementById(id);
-const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches);
 const TAU=Math.PI*2;
 let W=0,H=0,S=1,DPR=1,groundY=0,ceilY=0;
 
@@ -415,6 +416,25 @@ function buildCourse(seed){
   }
   PODS=pods;
   return out;
+}
+
+/* ---------------- storage ------------------------------------------------
+   Three tiers, in order of preference. window.storage exists inside Claude's
+   artifact sandbox; localStorage is what a real web host gives you; the plain
+   object is the last resort so nothing ever throws. */
+const mem={};
+const LS=(function(){try{const k='__fp_probe';localStorage.setItem(k,'1');
+  localStorage.removeItem(k);return localStorage;}catch(e){return null;}})();
+async function sGet(k,d){
+  try{ if(window.storage){const r=await window.storage.get(k);
+       if(r&&r.value!=null)return r.value;} }catch(e){}
+  try{ if(LS){const v=LS.getItem(k); if(v!==null)return v;} }catch(e){}
+  return (k in mem)?mem[k]:d;
+}
+async function sSet(k,v){
+  mem[k]=String(v);
+  try{ if(window.storage)await window.storage.set(k,String(v)); }catch(e){}
+  try{ if(LS)LS.setItem(k,String(v)); }catch(e){}
 }
 
 /* ---------------- ghost codec --------------------------------------------
@@ -1155,6 +1175,7 @@ $('bFriend').onclick=()=>{
   const code=(prompt('Enter your friend\u2019s run code:')||'').trim().toUpperCase();
   if(code)raceCode(code,null);
 };
+if(CONFIG.HUB_URL){const hb=$('bHub');hb.href=CONFIG.HUB_URL;hb.hidden=false;}
 $('bStart').onclick=()=>{if(!tutSeen){tutFromMenu=false;showTut(0,false);}else play();};
 $('bTut').onclick=()=>{tutFromMenu=true;showTut(0,true);};
 $('bGhost').onclick=()=>{ghostOn=!ghostOn;syncGhostBtn();};
