@@ -177,6 +177,7 @@
     <button class="link" id="bGhost">Ghost race: off</button>
     <button class="link" id="bFriend">Race a friend's run</button>
     <button class="link" id="bPass">Pass &amp; play</button>
+    <a class="link" id="bHub" href="../" style="text-decoration:none;display:inline-block">← Arcade</a>
     <div class="seedline" id="seedTxt"></div>
   </div>
 
@@ -280,6 +281,7 @@
    STAFF PANEL: tap the menu logo 5×. Default PIN 1357.
    ========================================================================= */
 const CONFIG={
+  GAME:'dumpling',         // this game's id — every game in the arcade needs a unique one
   API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',              // <-- https://script.google.com/macros/s/AKfy.../exec
   API_KEY:'firepot-2026',  // <-- must match SECRET in the Apps Script
   VENUE:'Stafford',
@@ -287,8 +289,8 @@ const CONFIG={
   BOARD_TITLE:'Tonight at Firepot',
   BOARD_SIZE:8,
   SEED_DAILY:true,
-  DEFAULT_BOARD:[{i:'JLN',s:2480},{i:'MEI',s:1930},{i:'RAY',s:1615},
-                 {i:'ANA',s:1240},{i:'KUO',s:1020},{i:'TJZ',s:840}]
+  DEFAULT_BOARD:[{i:'JLN',s:6120},{i:'MEI',s:4830},{i:'RAY',s:4015},
+                 {i:'ANA',s:3240},{i:'KUO',s:2520},{i:'TJZ',s:1880}]
 };
 
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.getElementById('stage');
@@ -299,8 +301,8 @@ let W=0,H=0,S=1,DPR=1,groundY=0,ceilY=0;
 
 /* ---------------- feel ---------------------------------------------------- */
 const GRAV=2700, JUMPV=860, CUT=0.55;
-const SPD0=340, SPDGAIN=0.0105, SPDCAP=690;
-const COYOTE=0.10, BUFFER=0.13, UPM=34;
+const SPD0=272, SPDCAP=620;                     // 20% slower off the line
+const COYOTE=0.10, BUFFER=0.13, UPM=24;         // world units per displayed metre
 const PH=30;                                    // dumpling standing height, world units
 const HOP=Math.round((CUT*JUMPV)**2/(2*GRAV));  // ≈41 — short-hop apex
 const LEAP=Math.round(JUMPV*JUMPV/(2*GRAV));    // ≈137 — full-jump apex
@@ -311,80 +313,110 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 function todaySeed(){const d=new Date();
   return CONFIG.SEED_DAILY?(d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate()):20260101;}
 const SEED=todaySeed();
-function speedAt(u){return Math.min(SPDCAP,SPD0+u*SPDGAIN);}
+/* Speed: almost flat for the first 500m, then +15% every 250m, capped where
+   the forward view still buys ~0.36s of reaction time. Milestones land at
+   250m/21s, 500m/41s, 1000m/74s, 2000m/119s, 5000m/235s. */
+function speedAt(u){
+  const m=u/UPM;
+  const v = m<500 ? SPD0*Math.pow(1.08,m/250)
+                  : SPD0*1.1664*Math.pow(1.15,(m-500)/250);
+  return Math.min(SPDCAP,v);
+}
 function leapLen(u){return speedAt(u)*(2*JUMPV/GRAV);}
 function hopLen(u){return speedAt(u)*(2*CUT*JUMPV/GRAV);}
 
-/* The chopsticks reach lower the deeper you get — but the spread stays wide,
-   so it's a descending average, not a single wall dropping on you. */
+/* Chopstick clearance. Your head tops out at 167 at the peak of a full jump,
+   so the first ones (165-185) can only be clipped at the exact climax — they
+   read as a threat long before they are one. By 5000m they're at 44-60 and
+   you have to stay flat on the ground. */
 function reachAt(m,r){
-  const t=Math.min(1,Math.max(0,(m-240)/1500));
-  const avg=94-48*t, spread=18-5*t;
-  return Math.round(Math.max(36,Math.min(120,avg+(r()-0.5)*2*spread)));
+  const p=Math.min(1,Math.max(0,(m-500)/4500));
+  return Math.round(Math.max(44,Math.min(190,(175-130*p)+(r()-0.5)*2*(10+6*p))));
+}
+
+/* Walls: singles from the off, doubles from 250m, triples from 1000m. */
+function wallCount(m,r){
+  if(m<250)return 1;
+  if(m<1000)return r()<0.42?2:1;
+  const t=Math.min(1,(m-1000)/2000),R=r();
+  if(R<0.22+0.20*t)return 3;
+  if(R<0.58+0.12*t)return 2;
+  return 1;
+}
+
+/* Obstacle mix. Chopsticks are 10% of obstacles at 500m rising to 30% at
+   4000m, so the game stays mostly about jumping. Boss mode at 2000m folds in
+   the threading obstacles on top of everything else. */
+function pickType(m,r){
+  const R=r();let acc=0;
+  // 10% at 500m -> 24% at 4000m. Sits lower than the 30% target on purpose:
+  // each gauntlet ships two more chopsticks of its own, which lands the real
+  // on-screen rate at about 30% without starving the jumping.
+  if(m>=500){acc+=0.10+0.14*Math.min(1,(m-500)/3500);if(R<acc)return 'chop';}
+  if(m>=800){acc+=0.12;if(R<acc)return 'tall';}
+  if(m>=2000){acc+=0.13;if(R<acc)return r()<0.65?'pinch':'gauntlet';}
+  return 'low';
+}
+
+/* One chili bomb per wall, arced over the top along the line the hop takes. */
+function addPods(pods,u,wid,h,n,r){
+  for(let i=0;i<n;i++){
+    const f=n===1?0.5:i/(n-1);
+    pods.push({u:u-4+f*(wid+8),
+               y:h+18+Math.sin(Math.PI*(0.22+0.56*f))*14,
+               got:false,ph:r()*TAU});
+  }
 }
 
 let COURSE=[],PODS=[];
 function buildCourse(seed){
-  const r=mulberry32(seed),out=[];let u=1000,n=0;
-  const push=o=>{out.push(o);};
-  while(u<120000){
-    const m=u/UPM,R=r();
-    let t='low';
-    if(m>1100&&R<0.12)      t='gauntlet';
-    else if(m>820&&R<0.26)  t='pinch';
-    else if(m>500&&R<0.46)  t='tall';
-    else if(m>240&&R<0.66)  t='chop';
+  const r=mulberry32(seed),out=[],pods=[];
+  let u=1200,n=0;
+  while(u<134000){                       // spans past 5000m
+    const m=u/UPM,t=pickType(m,r);
+    // extra breathing room early: the first 250m should be a walk
+    const ease=1+0.85*Math.max(0,1-m/600);
 
     if(t==='low'){
-      const n2=m>400&&r()<0.45?(m>900&&r()<0.4?3:2):1;
-      push({u:u,t:t,n:n2,w:n2*6+(n2-1)*9,h:26+r()*12,ceil:1e5});
-      u+=leapLen(u)+n2*15+(120+r()*180)*(1-Math.min(m/1100,1)*0.30);
+      const w=wallCount(m,r),wid=w*6+(w-1)*9,h=26+r()*12;
+      out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5});
+      addPods(pods,u,wid,h,w,r);
+      u+=leapLen(u)+wid+(140+r()*200)*ease;
     }
     else if(t==='tall'){
-      push({u:u,t:t,n:1,w:8,h:54+r()*16,ceil:1e5});
-      u+=leapLen(u)+(130+r()*170)*(1-Math.min(m/1100,1)*0.28);
+      const h=54+r()*16;
+      out.push({u:u,t:'tall',n:1,w:8,h:h,ceil:1e5});
+      addPods(pods,u,8,h,1,r);
+      u+=leapLen(u)+(150+r()*180)*ease;
     }
     else if(t==='chop'){
-      const c=reachAt(m,r),w=14+r()*(12+16*Math.min(1,(m-240)/1400));
-      push({u:u,t:t,n:0,w:w,h:0,ceil:c,ph:r()*TAU});
-      u+=w+(150+r()*200)*(1-Math.min(m/1100,1)*0.25);
+      const c=reachAt(m,r),w=14+r()*(10+14*Math.min(1,(m-500)/3500));
+      out.push({u:u,t:'chop',n:0,w:w,h:0,ceil:c,ph:r()*TAU});
+      if(c>PH+46&&r()<0.5)
+        pods.push({u:u+w*0.5,y:Math.min(c-PH-10,20+r()*22),got:false,ph:r()*TAU});
+      u+=w+(170+r()*210)*ease;
     }
     else if(t==='pinch'){
-      const h=24+r()*5, win=24-8*Math.min(1,(m-820)/900);
-      push({u:u,t:t,n:1,w:9,h:h,ceil:Math.round(h+PH+win),ph:r()*TAU});
-      u+=leapLen(u)*0.7+(150+r()*160);
+      const h=24+r()*5,win=24-8*Math.min(1,(m-2000)/2000);
+      out.push({u:u,t:'pinch',n:1,w:9,h:h,ceil:Math.round(h+PH+win),ph:r()*TAU});
+      u+=leapLen(u)*0.75+(160+r()*170);
     }
-    else { /* gauntlet: duck, hop, duck — the corridor with no room to panic */
-      const c=reachAt(m,r), sh=22+r()*6;
-      push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:Math.max(c,PH+16),ph:r()*TAU});
-      u+=hopLen(u)*0.55+70;
-      push({u:u,t:'low',n:1,w:6,h:sh,ceil:1e5});
-      u+=hopLen(u)*0.75+70;
-      push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:Math.max(c-4,PH+14),ph:r()*TAU});
-      u+=leapLen(u)+(190+r()*150);
+    else {  /* gauntlet: duck, hop, duck — no room to panic */
+      const c=Math.max(reachAt(m,r),PH+20),sh=22+r()*6;
+      out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:c,ph:r()*TAU});
+      u+=hopLen(u)*0.6+80;
+      out.push({u:u,t:'low',n:1,w:6,h:sh,ceil:1e5});
+      u+=hopLen(u)*0.8+80;
+      out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:Math.max(c-6,PH+18),ph:r()*TAU});
+      u+=leapLen(u)+(200+r()*160);
     }
-    if(n%8===7)u+=leapLen(u)*0.7;
+    if(n%8===7)u+=leapLen(u)*0.7;        // a breath every eighth
     n++;
   }
-  return out;
-}
-function buildPods(course,seed){
-  const r=mulberry32(seed^0x9E37),out=[];
-  for(const o of course){
-    if(r()>0.56)continue;
-    const floor=o.h>0?o.h:16;
-    const roof=o.ceil<1e4?o.ceil-PH-6:floor+(26+r()*26);
-    if(roof<=floor+8)continue;
-    out.push({u:o.u+o.w*0.5,y:Math.min(roof,floor+14+r()*22),got:false,ph:r()*TAU});
-  }
+  PODS=pods;
   return out;
 }
 
-/* ---------------- storage ------------------------------------------------- */
-const mem={};
-async function sGet(k,d){try{const r=await window.storage.get(k);return r&&r.value!=null?r.value:(k in mem?mem[k]:d);}
-  catch(e){return(k in mem)?mem[k]:d;}}
-async function sSet(k,v){mem[k]=v;try{await window.storage.set(k,String(v));}catch(e){}}
 /* ---------------- ghost codec --------------------------------------------
    Heights are 0–225 world units sampled every 8. Store every other sample as
    one printable char — a 1200m run lands near 2.5 KB, fine for a Sheets cell. */
@@ -420,7 +452,7 @@ function jsonp(params){
 }
 async function netTop(scope){
   try{
-    const d=await jsonp({a:'top',scope:scope,course:SEED,limit:CONFIG.BOARD_SIZE});
+    const d=await jsonp({a:'top',game:CONFIG.GAME,scope:scope,course:SEED,limit:CONFIG.BOARD_SIZE});
     if(d&&d.ok){NET.ok=true;NET[scope==='daily'?'today':'all']=d.rows;return d.rows;}
     NET.lastErr=(d&&d.error)||'bad response';
   }catch(e){NET.ok=false;NET.lastErr=String(e);}
@@ -470,7 +502,7 @@ function resize(){
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
   cv.style.width=W+'px';cv.style.height=H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  S=H/440;groundY=Math.round(H*0.78);ceilY=Math.round(H*0.11);
+  S=H/500;groundY=Math.round(H*0.78);ceilY=Math.round(H*0.11);
   seedStars();
 }
 
@@ -481,7 +513,8 @@ let wd=0,score=0,pods=0,combo=0,comboT=0,shake=0,flash=0,idx=0,podIdx=0;
 let parts=[],stars=[],boil=[],pops=[],rec=[],recAt=0,seenTypes={},clacked={};
 let grab=null,pass=null,livesLeft=0,invuln=0,cheated=false,boardTab='today';
 
-const HEATS=[[0,'Simmer'],[220,'Boil'],[520,'Rolling boil'],[900,'Volcanic'],[1400,'Broth hell']];
+const HEATS=[[0,'Simmer'],[250,'Boil'],[500,'Rolling boil'],[1000,'Volcanic'],
+             [2000,'Boss mode'],[3500,'Broth hell']];
 function heatName(m){let n='Simmer';for(const h of HEATS)if(m>=h[0])n=h[1];return n;}
 function metres(){return Math.floor(wd/UPM);}
 function seedStars(){
@@ -495,7 +528,7 @@ function newB(x,l){return{x:x,r:(2+Math.random()*5)*S,life:l,sp:0.5+Math.random(
 /* ---------------- lifecycle ----------------------------------------------- */
 function reset(){
   wd=PERK.start*UPM;score=0;pods=0;combo=0;comboT=0;shake=0;flash=0;idx=0;podIdx=0;
-  px=W*0.24;py=groundY;vy=0;grounded=true;coyote=0;buffer=0;held=false;squash=0;rot=0;bob=0;
+  px=W*0.20;py=groundY;vy=0;grounded=true;coyote=0;buffer=0;held=false;squash=0;rot=0;bob=0;
   parts=[];pops=[];rec=[];recAt=wd;seenTypes={};clacked={};grab=null;
   livesLeft=PERK.lives;invuln=0;cheated=perksOn();
   for(const p of PODS)p.got=false;
@@ -610,8 +643,8 @@ async function submitInitials(){
   BOARD.push(entry);BOARD.sort((a,b)=>b.s-a.s);BOARD=BOARD.slice(0,CONFIG.BOARD_SIZE);
   saveBoard();hideAll();$('sOver').hidden=false;paintBoard(entry);
   if(!CONFIG.API_URL||cheated)return;
-  const res=await netSubmit({initials:name,score:score,metres:metres()-PERK.start,pods:pods,
-    course:SEED,venue:CONFIG.VENUE,ghost:encGhost(rec)});
+  const res=await netSubmit({game:CONFIG.GAME,initials:name,score:score,
+    metres:metres()-PERK.start,pods:pods,course:SEED,venue:CONFIG.VENUE,ghost:encGhost(rec)});
   if(res&&res.code){
     lastCode=res.code;
     $('oCode').textContent=res.code;$('oCode').hidden=false;$('oCodeHint').hidden=false;
@@ -678,6 +711,7 @@ function update(dt){
         for(let k=0;k<5;k++)parts.push({x:sx,y:sy,vx:(Math.random()-0.5)*180*S,
           vy:-(30+Math.random()*90)*S,r:(1.4+Math.random()*2)*S,life:0.7,col:'#E0B87C'});}
     }
+    if(!seenTypes.boss&&(metres()-PERK.start)>=2000){seenTypes.boss=1;banner('Boss mode');}
     if(!seenTypes[o.t]&&o.u-wd<620){seenTypes[o.t]=1;
       if(o.t==='chop')banner('Duck the chopsticks');
       else if(o.t==='tall')banner('Hold to clear');
@@ -950,10 +984,10 @@ function drawDumpling(){
 /* ---------------- tutorial ------------------------------------------------ */
 const TUT=[
  {h:'Tap to hop',b:'One thumb, anywhere. The dumpling runs on its own — you only decide when it leaves the ground.',art:'hop'},
- {h:'Hold to go higher',b:'A quick tap is a <b>short hop</b>. Holding gives a <b>full jump</b>. Nearly every death past 500m is jumping higher than you needed to.',art:'hold'},
- {h:'Duck the chopsticks',b:'Hands reach into the pot for you. They pinch shut as you pass — a full jump puts your head right in them. Run under, or short-hop through.',art:'chop'},
- {h:'They reach deeper',b:'Early on the chopsticks hang high and lazy. The further you get, the lower they come, until the ceiling is barely taller than you are.',art:'deep'},
- {h:'Chain the pods',b:'Chili pods are worth 50. Grab them back to back and the chain multiplies. Greed is how you break 2,000.',art:'pod'},
+ {h:'Hold to go higher',b:'A quick tap is a <b>short hop</b>, holding gives a <b>full jump</b>. The short hop is the one that collects chili — clear a wall by the smallest margin you can.',art:'hold'},
+ {h:'Duck the chopsticks',b:'From 500m, hands reach into the pot for you. They pinch shut as you pass. At first they hang so high only the very peak of a full jump can reach them.',art:'chop'},
+ {h:'They reach deeper',b:'Every 250m they come down a little. By 2000m a full jump gets you caught, and by 5000m the gap is barely taller than you are. That\u2019s boss mode.',art:'deep'},
+ {h:'Chain the pods',b:'One pod per wall — a triple wall floats three. Worth 50 each, and chaining them multiplies. Greed is how you break 5,000.',art:'pod'},
  {h:'Same course, all night',b:'Everyone in the restaurant runs the identical track today, so the board is a fair fight. New course tomorrow.',art:'seed'}
 ];
 function tutArt(k){
@@ -980,7 +1014,7 @@ function tutArt(k){
    <path d="M98 10 L98 58" stroke="#D3A468" stroke-width="4" stroke-linecap="round"/>
    <path d="M134 10 L134 68" stroke="#D3A468" stroke-width="4" stroke-linecap="round"/>
    <path d="M22 34 Q78 58 134 72" stroke="#FF5A1F" stroke-width="1.2" stroke-dasharray="3 3" fill="none"/>
-   <text x="77" y="103" fill="#8E93A8" font-size="8" text-anchor="middle" font-family="monospace">0m → 1500m</text></svg>`,
+   <text x="77" y="103" fill="#8E93A8" font-size="8" text-anchor="middle" font-family="monospace">500m → 5000m</text></svg>`,
   pod:`<svg viewBox="0 0 154 108"><path d="M8 88h138" stroke="#FF5A1F" stroke-width="2"/>
    <ellipse cx="42" cy="42" rx="7" ry="9" fill="#FF7A2B" transform="rotate(20 42 42)"/>
    <ellipse cx="77" cy="30" rx="7" ry="9" fill="#FF7A2B" transform="rotate(20 77 30)"/>
@@ -1134,8 +1168,8 @@ function frame(ts){
   if(!last)last=ts;let dt=(ts-last)/1000;last=ts;if(dt>0.05)dt=0.05;
   update(dt);draw();requestAnimationFrame(frame);
 }
-addEventListener('resize',()=>{resize();if(state!=='play'){px=W*0.24;py=groundY;}});
-COURSE=buildCourse(SEED);PODS=buildPods(COURSE,SEED);
+addEventListener('resize',()=>{resize();if(state!=='play'){px=W*0.20;py=groundY;}});
+COURSE=buildCourse(SEED);   // also fills PODS
 resize();loadAll().then(menu);
 requestAnimationFrame(frame);
 })();
