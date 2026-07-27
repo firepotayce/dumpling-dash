@@ -154,7 +154,60 @@
   .netdot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#555;margin-right:6px}
   .netdot.on{background:var(--scallion);box-shadow:0 0 7px var(--scallion)}
 
-  @media (prefers-reduced-motion:reduce){.cta{animation:none}#combo,#banner{transition:none}}
+  /* --- brand mark --- */
+  #brand{display:flex;justify-content:center;margin-bottom:14px}
+  #brand svg,#brand img{height:52px;width:auto;display:block}
+  #brand img{max-width:230px;object-fit:contain}
+
+  /* --- rotate prompt --- */
+  #rotate{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+    padding:34px 26px;text-align:center;background:rgba(11,10,16,.965);backdrop-filter:blur(3px)}
+  #rotate[hidden]{display:none}
+  .rotwrap{display:flex;flex-direction:column;align-items:center;gap:18px;max-width:280px}
+  .rotphone{width:130px;height:112px;color:var(--dough)}
+  @keyframes tilt{0%,26%{transform:rotate(0)}64%,100%{transform:rotate(-90deg)}}
+  .rotphone .ph{transform-origin:70px 58px;animation:tilt 2.6s ease-in-out infinite alternate}
+  .rothead{font-family:var(--display);font-size:32px;line-height:1;text-transform:uppercase;color:var(--dough)}
+  .rotsub{font-size:12px;line-height:1.9;color:rgba(247,233,206,.6)}
+
+  /* --- tutorial text group (stacks in portrait, sits beside art in landscape) --- */
+  .tuttext{display:flex;flex-direction:column;align-items:center;gap:18px}
+
+  /* --- landscape: the intended way to play --- */
+  @media (orientation:landscape) and (max-height:520px){
+    .screen{padding:14px 22px}
+    #brand{margin-bottom:8px} #brand svg,#brand img{height:34px}
+    .eyebrow{margin-bottom:8px}
+    h1{font-size:clamp(28px,7.4vh,42px)}
+    .rule{margin:11px 0}
+    .cta{margin-top:12px;padding:10px 26px;font-size:16px}
+    .link{margin-top:5px;font-size:10px;padding:5px 11px}
+    .seedline{margin-top:9px;line-height:1.7}
+    #hud{padding:9px 14px}
+    .stat .v{font-size:20px} .stat.r .v{font-size:15px}
+    #heat{top:34px} #lives{top:34px} #combo{top:48px} #ghostbar{top:62px}
+    #banner{top:34%;font-size:26px}
+    #sTut{padding:14px 22px}
+    .tutcard{flex-direction:row;gap:26px}
+    .tutart{width:126px;height:88px;flex:none}
+    .tuttext{align-items:flex-start;text-align:left;gap:11px}
+    .tuth{font-size:25px} .tutp{font-size:11.5px;line-height:1.75;max-width:330px}
+    .dots{margin-bottom:8px}
+    .final .n{font-size:44px}
+    .board{max-width:420px;margin-top:10px}
+    .rows{min-height:0}
+    .row{padding:3px 0}
+    .slots{margin:12px 0 10px}
+    .slot{width:42px;height:50px;font-size:29px}
+    .keys{max-width:430px;gap:4px}
+    .key{font-size:12px}
+    #sAdmin{padding-top:16px}
+    .sect{margin-top:9px;padding-top:9px}
+    .perk{padding:5px 0}
+  }
+
+  @media (prefers-reduced-motion:reduce){.cta{animation:none}#combo,#banner{transition:none}
+    .rotphone .ph{animation:none;transform:rotate(-90deg)}}
 </style>
 </head>
 <body>
@@ -168,7 +221,27 @@
   <div id="banner"></div><div id="practice"></div>
   <div id="ghostbar"><span id="gLabel">GHOST</span><span id="gGap"></span></div>
 
+  <div id="rotate" hidden>
+    <div class="rotwrap">
+      <svg class="rotphone" viewBox="0 0 140 116" fill="none" stroke="currentColor" stroke-width="2.4">
+        <g class="ph">
+          <rect x="52" y="27" width="36" height="62" rx="6"/>
+          <rect x="57.5" y="34" width="25" height="43" rx="2" fill="currentColor" stroke="none" opacity=".16"/>
+          <circle cx="70" cy="83" r="1.8" fill="currentColor" stroke="none"/>
+        </g>
+        <path d="M26 66a30 30 0 0 1 8-30" stroke="#FFB03A" stroke-linecap="round"/>
+        <path d="M34 36l-8 1.5M34 36l1.5 8" stroke="#FFB03A" stroke-linecap="round"/>
+        <path d="M114 66a30 30 0 0 0-8-30" stroke="#FFB03A" stroke-linecap="round"/>
+        <path d="M106 36l8 1.5M106 36l-1.5 8" stroke="#FFB03A" stroke-linecap="round"/>
+      </svg>
+      <div class="rothead">Turn your phone</div>
+      <div class="rotsub">Sideways shows you far more of what's coming. Much easier to play.</div>
+      <button class="link" id="rotSkip">Play in portrait anyway</button>
+    </div>
+  </div>
+
   <div class="screen" id="sMenu">
+    <div id="brand"></div>
     <div class="eyebrow" id="logo">Firepot Arcade · 01</div>
     <h1>Dumpling<em>Dash</em></h1>
     <div class="rule"></div>
@@ -184,9 +257,11 @@
   <div class="screen" id="sTut" hidden>
     <div class="tutcard">
       <div class="tutart" id="tArt"></div>
-      <div class="tutnum" id="tNum"></div>
-      <div class="tuth" id="tHead"></div>
-      <div class="tutp" id="tBody"></div>
+      <div class="tuttext">
+        <div class="tutnum" id="tNum"></div>
+        <div class="tuth" id="tHead"></div>
+        <div class="tutp" id="tBody"></div>
+      </div>
     </div>
     <div class="dots" id="tDots"></div>
     <button class="cta" id="tNext">Next</button>
@@ -282,8 +357,9 @@
    ========================================================================= */
 const CONFIG={
   HUB_URL:'',              // set this only once an arcade hub page exists
+  LOGO_URL:'',             // e.g. 'logo.png' sitting next to this file; blank = built-in mark
   GAME:'dumpling',         // this game's id — every game in the arcade needs a unique one
-  API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',              // <-- https://script.google.com/macros/s/AKfy.../exec
+  API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',
   API_KEY:'firepot-2026',  // <-- must match SECRET in the Apps Script
   VENUE:'Stafford',
   DEFAULT_PIN:'1357',
@@ -298,7 +374,7 @@ const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.get
 const $=id=>document.getElementById(id);
 const REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches);
 const TAU=Math.PI*2;
-let W=0,H=0,S=1,DPR=1,groundY=0,ceilY=0;
+let W=0,H=0,S=1,DPR=1,groundY=0,ceilY=0,LAND=false;
 
 /* ---------------- feel ---------------------------------------------------- */
 const GRAV=2700, JUMPV=860, CUT=0.55;
@@ -506,6 +582,7 @@ async function loadAll(){
   TITLE=await sGet('dd:title',CONFIG.BOARD_TITLE);
   best=parseInt(await sGet('dd:best','0'),10)||0;
   tutSeen=(await sGet('dd:tut','0'))==='1';
+  portraitOK=(await sGet('dd:portraitOK','0'))==='1';
   try{const p=await sGet('dd:perk',null);if(p)PERK=JSON.parse(p);}catch(e){}
   try{const g=await sGet('dd:ghost:'+SEED,null);
     if(g){ghost=JSON.parse(g);ghostLabel='your best';ghostOn=true;}}catch(e){}
@@ -518,12 +595,31 @@ function saveBoard(){sSet('dd:board',JSON.stringify(BOARD));}
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
   const r=stage.getBoundingClientRect();
-  W=Math.max(260,r.width);H=Math.max(340,r.height);
+  W=Math.max(260,r.width);H=Math.max(240,r.height);
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
   cv.style.width=W+'px';cv.style.height=H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  S=H/500;groundY=Math.round(H*0.78);ceilY=Math.round(H*0.11);
+
+  /* Landscape is the intended orientation. The physics are identical either
+     way — what changes is how far ahead you can see. A shorter world height
+     keeps sprites a sensible size on a short screen, and the extra width
+     turns straight into reaction time. */
+  LAND = (W/H) >= 1.25;
+  const worldH = LAND ? 420 : 500;
+  S = H/worldH;
+  groundY = Math.round(H*(LAND?0.80:0.78));
+  ceilY   = Math.round(H*(LAND?0.085:0.11));
+  if(state!=='play')px=W*(LAND?0.16:0.20);
   seedStars();
+  checkOrient();
+}
+
+/* Prompt for landscape, but never force it: orientation lock only works in
+   real fullscreen, and not at all inside an iframe. */
+let portraitOK=false;
+function checkOrient(){
+  const el=$('rotate');if(!el)return;
+  el.hidden = !(!LAND && !portraitOK && state==='menu');
 }
 
 /* ---------------- state --------------------------------------------------- */
@@ -548,7 +644,7 @@ function newB(x,l){return{x:x,r:(2+Math.random()*5)*S,life:l,sp:0.5+Math.random(
 /* ---------------- lifecycle ----------------------------------------------- */
 function reset(){
   wd=PERK.start*UPM;score=0;pods=0;combo=0;comboT=0;shake=0;flash=0;idx=0;podIdx=0;
-  px=W*0.20;py=groundY;vy=0;grounded=true;coyote=0;buffer=0;held=false;squash=0;rot=0;bob=0;
+  px=W*(LAND?0.16:0.20);py=groundY;vy=0;grounded=true;coyote=0;buffer=0;held=false;squash=0;rot=0;bob=0;
   parts=[];pops=[];rec=[];recAt=wd;seenTypes={};clacked={};grab=null;
   livesLeft=PERK.lives;invuln=0;cheated=perksOn();
   for(const p of PODS)p.got=false;
@@ -564,7 +660,7 @@ function revive(o){
   for(let i=0;i<14;i++)burst(px,groundY-18*S,'#FFB03A');
 }
 function hideAll(){['sMenu','sTut','sOver','sInit','sPass','sPin','sAdmin'].forEach(i=>$(i).hidden=true);}
-function play(){reset();state='play';hideAll();$('hud').hidden=false;
+function play(){reset();state='play';hideAll();$('rotate').hidden=true;$('hud').hidden=false;
   $('ghostbar').classList.toggle('on',!!(ghost&&ghostOn));}
 function banner(t){const b=$('banner');b.textContent=t;b.classList.add('on');
   setTimeout(()=>b.classList.remove('on'),1400);}
@@ -1159,7 +1255,7 @@ $('adPin').onclick=()=>{
 $('adBack').onclick=menu;
 
 /* ---------------- menu ---------------------------------------------------- */
-function menu(){state='menu';grab=null;hideAll();$('hud').hidden=true;$('sMenu').hidden=false;
+function menu(){state='menu';grab=null;hideAll();$('hud').hidden=true;$('sMenu').hidden=false;checkOrient();
   $('seedTxt').innerHTML='COURSE #'+SEED
     +(ghost?' · GHOST '+ghost.score+' ('+ghostLabel+')':'')
     +(CONFIG.API_URL?'':'<br>LOCAL MODE — NO NETWORK BOARD');}
@@ -1176,6 +1272,24 @@ $('bFriend').onclick=()=>{
   if(code)raceCode(code,null);
 };
 if(CONFIG.HUB_URL){const hb=$('bHub');hb.href=CONFIG.HUB_URL;hb.hidden=false;}
+$('rotSkip').onclick=()=>{portraitOK=true;sSet('dd:portraitOK','1');checkOrient();};
+
+/* Swap in a real logo by setting CONFIG.LOGO_URL. Until then this mark
+   stands in and matches the palette. */
+(function brand(){
+  const b=$('brand');if(!b)return;
+  if(CONFIG.LOGO_URL){
+    b.innerHTML='<img src="'+CONFIG.LOGO_URL+'" alt="Firepot">';
+    b.querySelector('img').onerror=()=>{b.innerHTML=mark();};
+  } else b.innerHTML=mark();
+  function mark(){return '<svg viewBox="0 0 64 54" fill="none" aria-label="Firepot">'
+    +'<path d="M32 3c3.4 6.2-.8 8.6 1.2 11.6 2-1 3.2-3 3.2-5.2 3.2 4.2 4.6 8.4 4.6 11.6a9 9 0 0 1-18 0c0-4.4 2.6-9.2 9-18z" fill="#FF5A1F"/>'
+    +'<path d="M9 29h46" stroke="#FFB03A" stroke-width="2.6" stroke-linecap="round"/>'
+    +'<path d="M13 32h38l-2.6 13.4A4.5 4.5 0 0 1 44 49H20a4.5 4.5 0 0 1-4.4-3.6z" stroke="#FFB03A" stroke-width="2.6" stroke-linejoin="round"/>'
+    +'<path d="M9.5 33c-3.4.4-4 4.6-.8 5.8M54.5 33c3.4.4 4 4.6.8 5.8" stroke="#FFB03A" stroke-width="2.2" stroke-linecap="round"/>'
+    +'</svg>';}
+})();
+
 $('bStart').onclick=()=>{if(!tutSeen){tutFromMenu=false;showTut(0,false);}else play();};
 $('bTut').onclick=()=>{tutFromMenu=true;showTut(0,true);};
 $('bGhost').onclick=()=>{ghostOn=!ghostOn;syncGhostBtn();};
@@ -1189,7 +1303,8 @@ function frame(ts){
   if(!last)last=ts;let dt=(ts-last)/1000;last=ts;if(dt>0.05)dt=0.05;
   update(dt);draw();requestAnimationFrame(frame);
 }
-addEventListener('resize',()=>{resize();if(state!=='play'){px=W*0.20;py=groundY;}});
+addEventListener('resize',()=>{resize();if(state!=='play'){px=W*(LAND?0.16:0.20);py=groundY;}});
+addEventListener('orientationchange',()=>setTimeout(resize,120));  // iOS reports late
 COURSE=buildCourse(SEED);   // also fills PODS
 resize();loadAll().then(menu);
 requestAnimationFrame(frame);
