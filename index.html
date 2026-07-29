@@ -176,6 +176,43 @@
 
   .link.hub{text-decoration:none;display:inline-block}
 
+  /* --- brand lockup --- */
+  #brand{cursor:pointer}
+  #brand img{width:clamp(140px,46vw,250px);height:auto;max-height:26vh;object-fit:contain}
+  #brand svg{height:clamp(26px,6.4vh,52px);width:auto}
+  .venue{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(247,233,206,.42);margin:8px 0 clamp(5px,1.7vh,14px)}
+
+  /* --- medals --- */
+  .medal{width:16px;height:16px;border-radius:50%;flex:none;position:relative;
+    box-shadow:0 0 9px rgba(0,0,0,.5) inset}
+  .medal.gold  {background:linear-gradient(150deg,#FFE9A8,#E0A32B 62%,#A8730E)}
+  .medal.silver{background:linear-gradient(150deg,#F4F6FA,#B9C0CC 62%,#7C8492)}
+  .medal.bronze{background:linear-gradient(150deg,#F0C39A,#C1794A 62%,#8A4E27)}
+  .row .p{width:16px;flex:none}
+
+  /* --- optional 4th character --- */
+  .slot.opt{border-style:dashed;opacity:.62}
+  .slot.opt.cur{opacity:1}
+  .slothint{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(247,233,206,.35);margin:-8px 0 16px}
+
+  /* --- share card --- */
+  .sharecard{width:100%;max-width:300px;margin-top:16px;padding:14px 16px 13px;
+    border:1px solid rgba(255,176,58,.28);border-radius:3px;
+    background:linear-gradient(160deg,rgba(255,90,31,.10),rgba(11,10,16,.2));
+    display:flex;flex-direction:column;align-items:center;gap:5px}
+  .sc-flame svg{width:20px;height:26px;display:block}
+  .sc-head{font-family:var(--display);font-size:17px;line-height:1.1;
+    text-transform:uppercase;color:var(--dough)}
+  .sc-beat{font-size:11px;letter-spacing:.1em;color:var(--ember)}
+  .sc-venue{font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:rgba(247,233,206,.4)}
+  .sc-copy{margin-top:7px;background:none;border:1px solid rgba(247,233,206,.22);
+    border-radius:2px;color:rgba(247,233,206,.7);font-family:var(--mono);font-size:9.5px;
+    letter-spacing:.18em;text-transform:uppercase;padding:7px 14px;cursor:pointer}
+  .sc-copy:hover{color:var(--dough);border-color:rgba(255,176,58,.5)}
+
   /* Every vertical measurement on the menu is tied to stage height, so a short
      desktop embed shrinks the whole thing to fit instead of scrolling. */
   .screen{padding:clamp(12px,3.6vh,30px) clamp(18px,4vw,26px)}
@@ -192,7 +229,9 @@
   /* Second tier, applied by script only if the menu still doesn't fit —
      font metrics vary with whichever display face actually loaded. */
   #stage.tight h1{font-size:clamp(24px,7vh,42px)}
-  #stage.tight #brand svg,#stage.tight #brand img{height:clamp(20px,4.4vh,32px)}
+  #stage.tight #brand svg{height:clamp(20px,4.4vh,32px)}
+  #stage.tight #brand img{width:clamp(110px,30vw,170px);max-height:16vh}
+  #stage.tight .venue{margin:4px 0 4px}
   #stage.tight .rule{margin:7px 0}
   #stage.tight .cta{margin-top:9px;padding:8px 22px;font-size:15px}
   #stage.tight .link{margin-top:1px;padding:2px 10px;font-size:10px}
@@ -202,7 +241,11 @@
   /* --- landscape: the intended way to play --- */
   @media (orientation:landscape) and (max-height:520px){
     .screen{padding:14px 22px}
-    #brand{margin-bottom:8px} #brand svg,#brand img{height:34px}
+    #brand{margin-bottom:6px} #brand img{width:clamp(120px,26vw,190px);max-height:19vh}
+    #brand svg{height:30px}
+    .venue{margin:5px 0 6px;font-size:8px}
+    .sharecard{max-width:340px;margin-top:10px;padding:10px 14px}
+    .sc-head{font-size:15px} .slothint{margin:-6px 0 10px}
     .eyebrow{margin-bottom:8px}
     h1{font-size:clamp(28px,7.4vh,42px)}
     .rule{margin:11px 0}
@@ -268,13 +311,12 @@
 
   <div class="screen" id="sMenu">
     <div id="brand"></div>
-    <div class="eyebrow" id="logo">Firepot Arcade · 01</div>
+    <div class="venue" id="venueLine"></div>
     <h1>Dumpling<em>Dash</em></h1>
     <div class="rule"></div>
     <button class="cta" id="bStart">Start running</button>
     <button class="link" id="bTut">How to play</button>
-    <button class="link" id="bGhost">Ghost race: off</button>
-    <button class="link" id="bFriend">Race a friend's run</button>
+    <button class="link" id="bGhost">Chase your best: off</button>
     <button class="link" id="bPass">Pass &amp; play</button>
     <a class="link hub" id="bHub" href="#" hidden>← Arcade</a>
     <div class="seedline" id="seedTxt"></div>
@@ -296,8 +338,9 @@
 
   <div class="screen" id="sInit" hidden>
     <div class="eyebrow">You made the board</div>
-    <div class="tuth">Enter initials</div>
-    <div class="slots"><div class="slot cur" id="s0">_</div><div class="slot" id="s1">_</div><div class="slot" id="s2">_</div></div>
+    <div class="tuth">Enter your name</div>
+    <div class="slots"><div class="slot cur" id="s0">_</div><div class="slot" id="s1">_</div><div class="slot" id="s2">_</div><div class="slot opt" id="s3">_</div></div>
+    <div class="slothint">3 or 4 characters</div>
     <div class="keys" id="keys"></div>
   </div>
 
@@ -307,8 +350,7 @@
     <div class="sub" id="oDist"></div>
     <div class="sub pb" id="oPB" hidden>New personal best</div>
     <div class="sub warn" id="oPractice" hidden>Practice run — not submitted</div>
-    <div class="sharecode" id="oCode" hidden></div>
-    <div class="sharehint" id="oCodeHint" hidden>Tap to copy · friends enter this to race you</div>
+
     <div class="board">
       <div class="tabs">
         <button class="tab on" data-t="today">Today</button>
@@ -316,6 +358,19 @@
         <button class="tab" data-t="local">This device</button>
       </div>
       <div class="rows" id="oBoard"></div>
+    </div>
+    <div class="sharecard" id="shareCard">
+      <div class="sc-flame">
+        <svg viewBox="0 0 26 34" fill="none" aria-hidden="true">
+          <path d="M13 1.5c2.6 4.6-.6 6.4.9 8.6 1.5-.8 2.4-2.2 2.4-3.9 2.4 3.1 3.5 6.3 3.5 8.7a6.8 6.8 0 0 1-13.6 0c0-3.3 2-6.9 6.8-13.4z" fill="#C8202B"/>
+          <path d="M4.5 20.5h17l-1.3 8.4a3 3 0 0 1-3 2.6H8.8a3 3 0 0 1-3-2.6z" stroke="#E89468" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M2.5 20.5h21" stroke="#E89468" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="sc-head" id="scHead"></div>
+      <div class="sc-beat" id="scBeat"></div>
+      <div class="sc-venue" id="scVenue"></div>
+      <button class="sc-copy" id="scCopy">Copy to share</button>
     </div>
     <button class="cta" id="bAgain">Run it back</button>
     <button class="link" id="bMenu">Menu</button>
@@ -352,16 +407,6 @@
     </div>
 
     <div class="sect">
-      <h4>Local board</h4>
-      <div class="arow" style="border:0"><span class="p">T</span>
-        <input id="adTitle" class="scr" style="text-align:left;letter-spacing:.06em" placeholder="Board title"></div>
-      <div class="adminlist" id="adRows"></div>
-      <div class="btnrow"><button class="abtn" id="adAdd">+ Add row</button>
-        <button class="abtn go" id="adSave">Save</button>
-        <button class="abtn warn" id="adWipe">Clear</button></div>
-    </div>
-
-    <div class="sect">
       <h4>Access</h4>
       <div class="btnrow"><button class="abtn" id="adPin">Change PIN</button>
         <button class="abtn" id="adPull">Refresh network board</button></div>
@@ -383,7 +428,9 @@
    ========================================================================= */
 const CONFIG={
   HUB_URL:'',              // set this only once an arcade hub page exists
-  LOGO_URL:'',             // e.g. 'logo.png' sitting next to this file; blank = built-in mark
+  LOGO_URL:'logo.png',     // sits next to this file
+  VENUE_LINE:'Firepot Seafood & Hot Pot \u00b7 Stafford, TX',
+  MAX_PER_NAME:3,          // one player may hold up to this many board rows
   GAME:'dumpling',         // this game's id — every game in the arcade needs a unique one
   API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',
   API_KEY:'firepot-2026',  // <-- must match SECRET in the Apps Script
@@ -392,8 +439,7 @@ const CONFIG={
   BOARD_TITLE:'Tonight at Firepot',
   BOARD_SIZE:8,
   SEED_DAILY:true,
-  DEFAULT_BOARD:[{i:'JLN',s:6120},{i:'MEI',s:4830},{i:'RAY',s:4015},
-                 {i:'ANA',s:3240},{i:'KUO',s:2520},{i:'TJZ',s:1880}]
+  DEFAULT_BOARD:[]         // board starts empty; every row is earned
 };
 
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.getElementById('stage');
@@ -405,7 +451,7 @@ const REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:r
 const TOUCH = window.matchMedia
   ? window.matchMedia('(pointer:coarse)').matches
   : (navigator.maxTouchPoints>0 || 'ontouchstart' in window);
-const COPYHINT=(TOUCH?'Tap':'Click')+' to copy · friends enter this to race you';
+const COPYHINT=(TOUCH?'Tap':'Click')+' to copy';
 const TAU=Math.PI*2;
 let W=0,H=0,S=1,DPR=1,groundY=0,ceilY=0,LAND=false;
 
@@ -414,6 +460,11 @@ const GRAV=2700, JUMPV=860, CUT=0.55;
 const SPD0=272, SPDCAP=620;                     // 20% slower off the line
 const COYOTE=0.10, BUFFER=0.13, UPM=24;         // world units per displayed metre
 const PH=30;                                    // dumpling standing height, world units
+/* Escape velocity. Past 2000m the dumpling lights a rocket: world speed is
+   already capped, so instead each metre of track counts double. The run feels
+   like it's covering ground without the obstacles arriving any faster. */
+const BOOST_AT=2000, BOOST=2;
+function shownFrom(raw){return raw<=BOOST_AT?raw:BOOST_AT+(raw-BOOST_AT)*BOOST;}
 const HOP=Math.round((CUT*JUMPV)**2/(2*GRAV));  // ≈41 — short-hop apex
 const LEAP=Math.round(JUMPV*JUMPV/(2*GRAV));    // ≈137 — full-jump apex
 
@@ -484,9 +535,14 @@ function addPods(pods,u,wid,h,n,r){
     const f=n===1?0.5:i/(n-1);
     pods.push({u:u-4+f*(wid+8),
                y:Math.min(150,base+Math.sin(Math.PI*(0.20+0.60*f))*lift),
-               got:false,ph:r()*TAU});
+               got:false,ph:r()*TAU,k:pickIng(r)});
   }
 }
+
+/* The pot's worth grabbing. Common ingredients score 50; lobster is rare and
+   pays 150, so spotting one changes whether a jump is worth the risk. */
+const ING=['shrimp','fishball','mushroom','tofu','napa','noodles','crab','dumpling'];
+function pickIng(r){return r()<0.045?'lobster':ING[Math.floor(r()*ING.length)];}
 
 /* Low pods strung across an empty gap. Deliberately kept under 32 so they're
    collected by staying on the ground — jumping early to set up the next wall
@@ -498,14 +554,14 @@ function gapPods(pods,from,to,r){
   const k=1+Math.floor(r()*3),step=46,mid=from+span*0.5;
   const start=mid-(k-1)*step*0.5;
   for(let i=0;i<k;i++)
-    pods.push({u:start+i*step,y:11+r()*19,got:false,ph:r()*TAU});
+    pods.push({u:start+i*step,y:11+r()*19,got:false,ph:r()*TAU,k:pickIng(r)});
 }
 
 let COURSE=[],PODS=[];
 function buildCourse(seed){
   const r=mulberry32(seed),out=[],pods=[];
   let u=1200,n=0;
-  while(u<134000){                       // spans past 5000m
+  while(u<175000){          // far enough that 10,000m boosted is reachable                       // spans past 5000m
     const m=u/UPM,t=pickType(m,r);
     // A little extra room early, but nothing like the stroll it used to be.
     const ease=1+0.30*Math.max(0,1-m/500);
@@ -517,13 +573,13 @@ function buildCourse(seed){
 
     if(t==='low'){
       const w=wallCount(m,r),wid=w*6+(w-1)*9,h=26+r()*12;
-      out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5});
+      out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5,kind:r()<0.5?'tofu':'balls'});
       addPods(pods,u,wid,h,w,r);
       const e0=u+wid; u+=gap(wid,92,138); gapPods(pods,e0,u,r);
     }
     else if(t==='tall'){
       const h=54+r()*16;
-      out.push({u:u,t:'tall',n:1,w:8,h:h,ceil:1e5});
+      out.push({u:u,t:'tall',n:1,w:8,h:h,ceil:1e5,kind:r()<0.5?'claw':'plates'});
       addPods(pods,u,8,h,1,r);
       const e0=u+8; u+=gap(8,104,126); gapPods(pods,e0,u,r);
     }
@@ -531,7 +587,7 @@ function buildCourse(seed){
       const c=reachAt(m,r),w=14+r()*(10+14*Math.min(1,(m-500)/3500));
       out.push({u:u,t:'chop',n:0,w:w,h:0,ceil:c,ph:r()*TAU});
       if(c>PH+46&&r()<0.55)
-        pods.push({u:u+w*0.5,y:Math.min(c-PH-10,14+r()*38),got:false,ph:r()*TAU});
+        pods.push({u:u+w*0.5,y:Math.min(c-PH-10,14+r()*38),got:false,ph:r()*TAU,k:pickIng(r)});
       const e0=u+w; u+=Math.max(w+150,w+(118+r()*148)*ease); gapPods(pods,e0,u,r);
     }
     else if(t==='pinch'){
@@ -540,14 +596,14 @@ function buildCourse(seed){
          under half a frame — unplayable. Near the apex you're barely moving,
          so the same size gap gives roughly three frames of tolerance. */
       const h=82+r()*20, win=30-6*Math.min(1,(m-2000)/2500);
-      out.push({u:u,t:'pinch',n:1,w:9,h:h,ceil:Math.round(h+PH+win),ph:r()*TAU});
+      out.push({u:u,t:'pinch',n:1,w:9,h:h,ceil:Math.round(h+PH+win),ph:r()*TAU,kind:'claw'});
       u+=leapLen(u)*0.9+(112+r()*126);
     }
     else {  /* gauntlet: duck, hop, duck — no room to panic */
       const c=Math.max(reachAt(m,r),PH+20),sh=22+r()*6;
       out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:c,ph:r()*TAU});
       u+=hopLen(u)*0.6+80;
-      out.push({u:u,t:'low',n:1,w:6,h:sh,ceil:1e5});
+      out.push({u:u,t:'low',n:1,w:6,h:sh,ceil:1e5,kind:'tofu'});
       u+=hopLen(u)*0.8+80;
       out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:Math.max(c-6,PH+18),ph:r()*TAU});
       u+=leapLen(u)+(200+r()*160);
@@ -632,11 +688,6 @@ async function netSubmit(run){
   }catch(e){NET.lastErr=String(e);}
   return null;
 }
-async function netRun(code){
-  try{const d=await jsonp({a:'run',code:code});if(d&&d.ok)return d.run;}catch(e){NET.lastErr=String(e);}
-  return null;
-}
-
 let BOARD=CONFIG.DEFAULT_BOARD.slice(),PIN=CONFIG.DEFAULT_PIN,TITLE=CONFIG.BOARD_TITLE,
     ghost=null,ghostLabel='',best=0,tutSeen=false,ghostOn=false,lastCode='';
 let PERK={lives:0,inv:false,start:0};
@@ -693,13 +744,17 @@ function checkOrient(){
 let state='menu',last=0,clock=0;
 let px=0,py=0,vy=0,grounded=true,coyote=0,buffer=0,held=false,squash=0,rot=0,bob=0;
 let wd=0,score=0,pods=0,combo=0,comboT=0,shake=0,flash=0,idx=0,podIdx=0;
-let parts=[],stars=[],boil=[],pops=[],rec=[],recAt=0,seenTypes={},clacked={};
+let parts=[],stars=[],boil=[],pops=[],rec=[],recAt=0,seenTypes={},clacked={},podScore=0;
 let grab=null,pass=null,livesLeft=0,invuln=0,cheated=false,boardTab='today';
 
 const HEATS=[[0,'Simmer'],[250,'Boil'],[500,'Rolling boil'],[1000,'Volcanic'],
-             [2000,'Boss mode'],[3500,'Broth hell']];
+             [2000,'Orbit'],[4000,'Deep space']];
+/* Shown against boosted distance so they land where the player sees them. */
+const MILES=[[250,'Ignition'],[1000,'Life support'],[2000,'Escape velocity'],
+             [4000,'Firepot orbit'],[10000,'To broth & beyond']];
 function heatName(m){let n='Simmer';for(const h of HEATS)if(m>=h[0])n=h[1];return n;}
 function metres(){return Math.floor(wd/UPM);}
+function shownM(){return Math.floor(shownFrom(Math.max(0,metres()-PERK.start)));}
 function seedStars(){
   stars=[];const n=Math.round(W*H/9000);
   for(let i=0;i<n;i++)stars.push({x:Math.random()*W,y:ceilY+Math.random()*(groundY-ceilY)*0.86,
@@ -712,7 +767,7 @@ function newB(x,l){return{x:x,r:(2+Math.random()*5)*S,life:l,sp:0.5+Math.random(
 function reset(){
   wd=PERK.start*UPM;score=0;pods=0;combo=0;comboT=0;shake=0;flash=0;idx=0;podIdx=0;
   px=W*(LAND?0.16:0.20);py=groundY;vy=0;grounded=true;coyote=0;buffer=0;held=false;squash=0;rot=0;bob=0;
-  parts=[];pops=[];rec=[];recAt=wd;seenTypes={};clacked={};grab=null;
+  parts=[];pops=[];rec=[];recAt=wd;seenTypes={};clacked={};grab=null;podScore=0;
   livesLeft=PERK.lives;invuln=0;cheated=perksOn();
   for(const p of PODS)p.got=false;
   $('lives').textContent=livesLeft>0?'\u2666'.repeat(livesLeft):'';
@@ -741,19 +796,19 @@ function die(by,o){
   $('hud').hidden=true;$('ghostbar').classList.remove('on');
   $('combo').classList.remove('on');$('heat').textContent='';
   $('lives').textContent='';$('practice').textContent='';
-  const m=metres()-PERK.start,isPB=score>best&&!cheated;
+  const m=shownM(),isPB=score>best&&!cheated;
   if(isPB){best=score;sSet('dd:best',best);
     sSet('dd:ghost:'+SEED,JSON.stringify({score:score,ys:rec}));
     ghost={score:score,ys:rec};ghostLabel='your best';syncGhostBtn();}
   $('oScore').textContent=score;
-  $('oDist').textContent=m+'m · '+pods+' pods · '+heatName(metres());
+  $('oDist').textContent=m.toLocaleString()+'m · '+pods+' caught · '+heatName(m);
   $('oPB').hidden=!isPB;
   $('oPractice').hidden=!cheated;
   $('oCode').hidden=true;$('oCodeHint').hidden=true;
   $('oVerdict').textContent=by==='grab'
-    ? (score<900?'Picked up':score<2200?'Caught mid-hop':'They finally got you')
-    : (score<300?'Straight into the broth':score<900?'Overcooked'
-      :score<1800?'Nicely seared':score<3200?'Chef behavior':'Someone call the kitchen');
+    ? (score<1200?'Picked up':score<3000?'Caught mid-hop':'They finally got you')
+    : (score<400?'Straight into the broth':score<1200?'Overcooked'
+      :score<2600?'Nicely seared':score<5000?'Chef behavior':'Someone call mission control');
   const wait=by==='grab'?940:560;
   if(pass){setTimeout(passNext,wait);return;}
   const cut=BOARD.length<CONFIG.BOARD_SIZE?0:(BOARD[BOARD.length-1]?BOARD[BOARD.length-1].s:0);
@@ -763,50 +818,61 @@ function die(by,o){
 
 /* ---------------- board: today / all time / this device ------------------- */
 function showOver(){hideAll();$('sOver').hidden=false;paintBoard();}
-function localRows(){return BOARD.slice().sort((a,b)=>b.s-a.s).slice(0,CONFIG.BOARD_SIZE);}
-function rowHtml(r,i,mine){
+/* A player may hold several rows, capped at MAX_PER_NAME so one hot streak
+   can't bury everyone else. */
+function capPerName(rows,limit){
+  const seen={},out=[];
+  for(const r of rows.slice().sort((a,b)=>b.s-a.s)){
+    const k=(r.i||'').toUpperCase();
+    seen[k]=(seen[k]||0)+1;
+    if(seen[k]<=CONFIG.MAX_PER_NAME)out.push(r);
+    if(out.length>=limit)break;
+  }
+  return out;
+}
+function localRows(){return capPerName(BOARD,CONFIG.BOARD_SIZE);}
+
+/* Medals go to the top three distinct people, not the top three rows —
+   otherwise one player sweeping the board takes gold, silver and bronze. */
+function medalMap(rows){
+  const m={},order=[];
+  for(const r of rows){const k=(r.i||'').toUpperCase();
+    if(!(k in m)&&order.length<3){m[k]=order.length+1;order.push(k);}}
+  return m;
+}
+const MEDAL=['','gold','silver','bronze'];
+function rowHtml(r,i,mine,medals){
   const you=(mine&&r.i===mine.i&&r.s===mine.s)?' you':'';
-  const racable=!!r.code;
-  return '<'+(racable?'button':'div')+' class="row'+you+(racable?' btn':'')+'"'+
-    (racable?' data-code="'+r.code+'" data-who="'+r.i+'"':'')+'>'+
-    '<span class="p">'+((i||0)+1)+'</span><span class="t">'+(r.i||'---')+'</span>'+
-    (racable?'<span class="g">RACE</span>':'')+'<span class="s">'+r.s+'</span>'+
-    '</'+(racable?'button':'div')+'>';
+  const md=medals?(medals[(r.i||'').toUpperCase()]||0):0;
+  return '<div class="row'+you+'">'+
+    (md?'<span class="medal '+MEDAL[md]+'"></span>':'<span class="p">'+((i||0)+1)+'</span>')+
+    '<span class="t">'+(r.i||'---')+'</span>'+
+    '<span class="s">'+r.s.toLocaleString()+'</span></div>';
 }
 async function paintBoard(mine){
   const box=$('oBoard');
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.t===boardTab));
   const render=rows=>{
     if(!rows||!rows.length){box.innerHTML='<div class="empty">No runs yet — be first</div>';return;}
-    box.innerHTML=rows.map((r,i)=>rowHtml(r,i,mine)).join('');
-    box.querySelectorAll('[data-code]').forEach(b=>b.onclick=()=>raceCode(b.dataset.code,b.dataset.who));
+    const medals=medalMap(rows);
+    box.innerHTML=rows.map((r,i)=>rowHtml(r,i,mine,medals)).join('');
   };
   if(boardTab==='local'){render(localRows());return;}
   if(!CONFIG.API_URL){box.innerHTML='<div class="empty">Network board not set up yet<br>Showing this device instead</div>'
-    +localRows().map((r,i)=>rowHtml(r,i,mine)).join('');return;}
+    +localRows().map((r,i)=>rowHtml(r,i,mine,medalMap(localRows()))).join('');return;}
   const cached=boardTab==='today'?NET.today:NET.all;
   if(cached)render(cached);else box.innerHTML='<div class="empty">Loading…</div>';
   const rows=await netTop(boardTab==='today'?'daily':'lifetime');
   if(rows)render(rows);
   else if(!cached)box.innerHTML='<div class="empty">Board offline — showing this device</div>'
-    +localRows().map((r,i)=>rowHtml(r,i,mine)).join('');
+    +localRows().map((r,i)=>rowHtml(r,i,mine,medalMap(localRows()))).join('');
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{boardTab=t.dataset.t;paintBoard();});
 
-async function raceCode(code,who){
-  const run=await netRun(code);
-  if(!run||!run.ghost){alert('Could not load that run.');return;}
-  if(String(run.course)!==String(SEED)&&
-     !confirm((who||'That run')+' was set on a different day\u2019s course.\nRace it anyway? The obstacles won\u2019t line up.'))return;
-  ghost={score:run.score,ys:decGhost(run.ghost)};
-  ghostLabel=(who||run.initials||'friend');ghostOn=true;syncGhostBtn();
-  play();
-}
-
 /* ---------------- initials ------------------------------------------------ */
-let ini=['','',''],slot=0;
-function openInitials(){ini=['','',''];slot=0;drawSlots();hideAll();$('sInit').hidden=false;}
-function drawSlots(){for(let i=0;i<3;i++){const e=$('s'+i);
+let ini=['','','',''],slot=0;
+function openInitials(){ini=['','','',''];slot=0;drawSlots();hideAll();$('sInit').hidden=false;}
+function drawSlots(){for(let i=0;i<4;i++){const e=$('s'+i);
   e.textContent=ini[i]||'_';e.classList.toggle('cur',i===slot);}}
 (function(){
   const k=$('keys');let h='';
@@ -817,30 +883,21 @@ function drawSlots(){for(let i=0;i<3;i++){const e=$('s'+i);
   k.addEventListener('click',e=>{const b=e.target.closest('.key');if(!b)return;const c=b.dataset.k;
     if(c==='<'){slot=ini[slot]?slot:Math.max(0,slot-1);ini[slot]='';}
     else if(c==='!'){submitInitials();return;}
-    else{ini[slot]=c;if(slot<2)slot++;}
+    else{ini[slot]=c;if(slot<3)slot++;}
     drawSlots();});
 })();
 async function submitInitials(){
-  const name=(ini.join('')||'AAA').padEnd(3,'A');
+  // three characters is the norm; the fourth is there if you want it
+  let name=ini.join('').replace(/[^A-Z]/g,'').slice(0,4);
+  if(name.length<3)name=(name+'PLR').slice(0,3);
   const entry={i:name,s:score};
   BOARD.push(entry);BOARD.sort((a,b)=>b.s-a.s);BOARD=BOARD.slice(0,CONFIG.BOARD_SIZE);
   saveBoard();hideAll();$('sOver').hidden=false;paintBoard(entry);
   if(!CONFIG.API_URL||cheated)return;
   const res=await netSubmit({game:CONFIG.GAME,initials:name,score:score,
-    metres:metres()-PERK.start,pods:pods,course:SEED,venue:CONFIG.VENUE,ghost:encGhost(rec)});
-  if(res&&res.code){
-    lastCode=res.code;
-    $('oCode').textContent=res.code;$('oCode').hidden=false;$('oCodeHint').hidden=false;
-    NET.today=null;NET.all=null;paintBoard(entry);
-  }
+    metres:shownM(),pods:pods,course:SEED,venue:CONFIG.VENUE});
+  if(res&&res.ok!==false){NET.today=null;NET.all=null;paintBoard(entry);}
 }
-$('oCode').onclick=()=>{
-  if(!lastCode)return;
-  try{navigator.clipboard.writeText(lastCode);
-    $('oCodeHint').textContent='Copied';
-    setTimeout(()=>$('oCodeHint').textContent=COPYHINT,1600);}catch(e){}
-};
-
 /* ---------------- input --------------------------------------------------- */
 function down(e){if(state!=='play')return;e.preventDefault();buffer=BUFFER;held=true;}
 function up(){held=false;if(state==='play'&&vy<0)vy*=CUT;}
@@ -862,7 +919,7 @@ function update(dt){
   }
   const sp=speedAt(wd);
   wd+=sp*dt;
-  score=(metres()-PERK.start)+pods*50;
+  score=shownM()+podScore;
   invuln=Math.max(0,invuln-dt);
 
   coyote=grounded?COYOTE:Math.max(0,coyote-dt);
@@ -894,7 +951,8 @@ function update(dt){
         for(let k=0;k<5;k++)parts.push({x:sx,y:sy,vx:(Math.random()-0.5)*180*S,
           vy:-(30+Math.random()*90)*S,r:(1.4+Math.random()*2)*S,life:0.7,col:'#E0B87C'});}
     }
-    if(!seenTypes.boss&&(metres()-PERK.start)>=2000){seenTypes.boss=1;banner('Boss mode');}
+    const sm=shownM();
+    for(const M of MILES) if(sm>=M[0]&&!seenTypes['ms'+M[0]]){seenTypes['ms'+M[0]]=1;banner(M[1]);}
     if(!seenTypes[o.t]&&o.u-wd<620){seenTypes[o.t]=1;
       if(o.t==='chop')banner('Duck the chopsticks');
       else if(o.t==='tall')banner('Hold to clear');
@@ -906,9 +964,11 @@ function update(dt){
     const dx=wd-c.u,dy=(fh+PH*0.5)-c.y;
     if(dx*dx+dy*dy<(10+pw)*(10+pw)){
       c.got=true;pods++;combo++;comboT=1.6;flash=0.5;
+      const val=(c.k==='lobster'?150:50)*Math.max(1,combo);
+      podScore+=val;
       const sx=px+(c.u-wd)*S,sy=groundY-c.y*S;
-      for(let k=0;k<9;k++)burst(sx,sy,'#FFB03A');
-      pops.push({x:sx,y:sy,life:1,txt:'+'+(50*Math.max(1,combo))});
+      for(let k=0;k<(c.k==='lobster'?16:9);k++)burst(sx,sy,c.k==='lobster'?'#FF3B2F':'#FFB03A');
+      pops.push({x:sx,y:sy,life:1,txt:'+'+val});
     }
   }
   comboT-=dt;if(comboT<=0)combo=0;
@@ -920,8 +980,10 @@ function update(dt){
   pops=pops.filter(p=>p.life>0);
   shake*=0.88;flash*=0.86;stepBoil(dt);
 
-  const m=metres()-PERK.start;
-  $('hScore').textContent=score;$('hDist').textContent=m+'m';$('heat').textContent=heatName(metres());
+  const m=shownM();
+  $('hScore').textContent=score.toLocaleString();
+  $('hDist').textContent=m.toLocaleString()+'m';
+  $('heat').textContent=heatName(m);
   if(ghost&&ghostOn){
     const gs=Math.min(m,Math.floor(ghost.ys.length*8/UPM)),d=m-gs;
     $('gLabel').textContent=(ghostLabel||'ghost').toUpperCase()+' '+ghost.score;
@@ -980,6 +1042,18 @@ function drawRim(){
   ctx.strokeStyle='rgba(142,147,168,0.34)';ctx.lineWidth=1.2*S;
   ctx.beginPath();ctx.moveTo(0,ceilY);ctx.lineTo(W,ceilY);ctx.stroke();
   ctx.fillStyle='rgba(255,176,58,0.10)';ctx.fillRect(0,ceilY,W,6*S);
+  /* mission markings along the rim — ticks with a stencil every fourth */
+  const step=64*S, off=(-wd*S*0.55)%step;
+  ctx.textAlign='center';
+  for(let x=off,k=Math.floor(wd*S*0.55/step);x<W+step;x+=step,k++){
+    ctx.fillStyle='rgba(142,147,168,0.42)';
+    ctx.fillRect(x,ceilY-11*S,1.4*S,6*S);
+    if(k%4===0){
+      ctx.fillStyle='rgba(255,176,58,0.34)';
+      ctx.font='600 '+(7*S)+'px ui-monospace,Menlo,monospace';
+      ctx.fillText('FIREPOT',x+step*0.5,ceilY-13*S);
+    }
+  }
 }
 function drawBroth(){
   const br=ctx.createLinearGradient(0,groundY,0,H);
@@ -1010,26 +1084,84 @@ function drawGround(){eachVisible((o,sx)=>{if(o.h>0)drawSticks(sx,o);});}
 function drawHands(){eachVisible((o,sx)=>{if(o.ceil<1e4)drawChop(sx,o);});}
 
 function drawSticks(sx,o){
+  const k=o.kind||'tofu';
+  if(k==='claw')  return drawClaw(sx,o);
+  if(k==='plates')return drawPlates(sx,o);
+  if(k==='balls') return drawBalls(sx,o);
+  return drawTofu(sx,o);
+}
+function unitW(o){return 6*S;}
+
+/* Tofu: stacked blocks, one column per wall in the group. */
+function drawTofu(sx,o){
   const wS=6*S,gap=9*S,h=o.h*S,n=Math.max(1,o.n);
   for(let i=0;i<n;i++){
-    const x=sx+i*(wS+gap);
-    ctx.save();ctx.translate(x+wS/2,groundY);
-    const g=ctx.createLinearGradient(0,-h,0,0);
-    g.addColorStop(0,'#E0B87C');g.addColorStop(0.45,'#C08B52');g.addColorStop(1,'#6B4526');
-    ctx.fillStyle=g;ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(-wS/2,-h,wS,h,wS*0.5);else ctx.rect(-wS/2,-h,wS,h);
-    ctx.fill();
-    ctx.fillStyle='rgba(58,32,16,0.85)';ctx.beginPath();
-    ctx.ellipse(0,-h+2*S,wS*0.5,wS*0.42,0,0,TAU);ctx.fill();
-    ctx.fillStyle='rgba(255,90,31,0.30)';ctx.fillRect(-wS/2,-h*0.34,wS,h*0.34);
-    ctx.restore();
+    const x=sx+i*(wS+gap), blocks=Math.max(1,Math.round(o.h/13));
+    for(let b=0;b<blocks;b++){
+      const bh=h/blocks, y=groundY-h+b*bh;
+      const g=ctx.createLinearGradient(x,y,x+wS*1.9,y+bh);
+      g.addColorStop(0,'#FDF6E4');g.addColorStop(1,'#D6BE94');
+      ctx.fillStyle=g;ctx.beginPath();
+      if(ctx.roundRect)ctx.roundRect(x-wS*0.45,y+1*S,wS*1.9,bh-2*S,2.5*S);
+      else ctx.rect(x-wS*0.45,y+1*S,wS*1.9,bh-2*S);
+      ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.5)';
+      ctx.fillRect(x-wS*0.3,y+3*S,wS*0.8,1.6*S);
+    }
+    ctx.fillStyle='rgba(255,90,31,0.26)';
+    ctx.fillRect(x-wS*0.45,groundY-h*0.32,wS*1.9,h*0.32);
   }
 }
+/* Fish balls: a heaped pile that reads instantly at speed. */
+function drawBalls(sx,o){
+  const wS=6*S,gap=9*S,h=o.h*S,n=Math.max(1,o.n);
+  for(let i=0;i<n;i++){
+    const x=sx+i*(wS+gap)+wS*0.5, rows=Math.max(2,Math.round(o.h/11)), br=h/(rows*1.55);
+    for(let rI=0;rI<rows;rI++){
+      const cnt=rI===rows-1?1:2, y=groundY-br-rI*br*1.5;
+      for(let c2=0;c2<cnt;c2++){
+        const bx=x+(cnt===1?0:(c2?br*0.82:-br*0.82));
+        const g=ctx.createRadialGradient(bx-br*0.3,y-br*0.35,br*0.15,bx,y,br);
+        g.addColorStop(0,'#FFFCF2');g.addColorStop(1,'#CDB88E');
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,y,br,0,TAU);ctx.fill();
+      }
+    }
+  }
+}
+/* Plate stack: rims catch the broth light. */
+function drawPlates(sx,o){
+  const h=o.h*S,cx=sx+4*S,plates=Math.max(3,Math.round(o.h/9)),ph=h/plates;
+  for(let i=0;i<plates;i++){
+    const y=groundY-i*ph-ph*0.5, rw=13*S;
+    ctx.fillStyle='#EFE6D4';ctx.beginPath();ctx.ellipse(cx,y,rw,ph*0.62,0,0,TAU);ctx.fill();
+    ctx.strokeStyle='rgba(255,90,31,0.55)';ctx.lineWidth=1.1*S;ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,0.16)';ctx.beginPath();
+    ctx.ellipse(cx,y+ph*0.3,rw*0.9,ph*0.3,0,0,TAU);ctx.fill();
+  }
+}
+/* Lobster claw rising out of the broth, pincer open. */
+function drawClaw(sx,o){
+  const h=o.h*S,cx=sx+4*S,open=0.16+0.1*Math.sin(clock*3+(o.ph||0));
+  ctx.save();
+  ctx.strokeStyle='#C0180F';ctx.lineWidth=6*S;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(cx,groundY);ctx.lineTo(cx,groundY-h*0.55);ctx.stroke();
+  ctx.translate(cx,groundY-h*0.55);
+  for(const side of[-1,1]){
+    ctx.save();ctx.rotate(side*open);
+    const g=ctx.createLinearGradient(0,0,0,-h*0.5);
+    g.addColorStop(0,'#C0180F');g.addColorStop(1,'#FF5B44');
+    ctx.fillStyle=g;ctx.beginPath();
+    ctx.moveTo(-3*S,0);
+    ctx.quadraticCurveTo(side*11*S,-h*0.28,side*3*S,-h*0.48);
+    ctx.quadraticCurveTo(side*1*S,-h*0.26,3*S,0);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle='rgba(255,120,90,0.5)';ctx.beginPath();
+  ctx.ellipse(0,0,7*S,4*S,0,0,TAU);ctx.fill();
+  ctx.restore();
+}
 
-/* ---- the signature: a hand reaching in, chopsticks pinching as you slip past.
-   Openness is driven by YOUR position, so they always shut exactly as you pass —
-   menacing to look at, completely fair to play against. The hitbox is the
-   closed tip line, which is also where the tips are at the moment it matters. */
 function drawChop(sx,o){
   const w=Math.max(14*S,o.w*S),cx=sx+w*0.5;
   const tipY=groundY-o.ceil*S, pivY=ceilY+2*S, L=tipY-pivY;
@@ -1093,14 +1225,79 @@ function drawPods(){
   for(let i=Math.max(0,podIdx-2);i<PODS.length;i++){
     const c=PODS[i];if(c.got)continue;
     const sx=px+(c.u-wd)*S;if(sx>W+40*S)break;if(sx<-40*S)continue;
-    const sy=groundY-c.y*S+Math.sin(c.ph)*3*S,r=8*S;
-    ctx.save();ctx.shadowColor='rgba(255,176,58,0.95)';ctx.shadowBlur=18*S;ctx.fillStyle='#FF7A2B';
-    ctx.beginPath();ctx.ellipse(sx,sy,r*0.72,r,0.5,0,TAU);ctx.fill();ctx.restore();
-    ctx.fillStyle='rgba(255,236,190,0.9)';ctx.beginPath();ctx.arc(sx-r*0.22,sy-r*0.3,r*0.22,0,TAU);ctx.fill();
-    ctx.strokeStyle='#7FD46A';ctx.lineWidth=2*S;ctx.lineCap='round';ctx.beginPath();
-    ctx.moveTo(sx+r*0.3,sy-r*0.75);ctx.lineTo(sx+r*0.6,sy-r*1.15);ctx.stroke();
+    const sy=groundY-c.y*S+Math.sin(c.ph)*3*S;
+    drawIng(sx,sy,10*S,c.k||'shrimp');
   }
 }
+
+/* Ingredients read at roughly 20px, so each one leans on a distinct
+   silhouette and colour rather than detail. */
+function drawIng(x,y,r,kind){
+  ctx.save();ctx.translate(x,y);
+  const rare=kind==='lobster';
+  ctx.shadowColor=rare?'rgba(255,59,47,0.95)':'rgba(255,176,58,0.75)';
+  ctx.shadowBlur=(rare?24:14)*S;
+  const E=(cx,cy,rx,ry,rot,fill)=>{ctx.fillStyle=fill;ctx.beginPath();
+    ctx.ellipse(cx*r,cy*r,rx*r,ry*r,rot,0,TAU);ctx.fill();};
+  const L=(pts,col,w)=>{ctx.strokeStyle=col;ctx.lineWidth=w*r;ctx.lineCap='round';
+    ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0]*r,p[1]*r):ctx.moveTo(p[0]*r,p[1]*r));ctx.stroke();};
+
+  if(kind==='shrimp'){
+    ctx.strokeStyle='#FF8A5B';ctx.lineWidth=r*0.52;ctx.lineCap='round';
+    ctx.beginPath();ctx.arc(0,0,r*0.56,Math.PI*0.15,Math.PI*1.5);ctx.stroke();
+    ctx.fillStyle='#FFC7A6';ctx.beginPath();
+    ctx.moveTo(r*0.5,r*0.5);ctx.lineTo(r*1.05,r*0.95);ctx.lineTo(r*0.95,r*0.2);ctx.closePath();ctx.fill();
+    E(-0.42,-0.5,0.12,0.12,0,'#5A2417');
+  } else if(kind==='fishball'){
+    E(0,0,0.86,0.86,0,'#F3EAD8');
+    E(-0.28,-0.3,0.26,0.2,-0.5,'rgba(255,255,255,0.85)');
+  } else if(kind==='mushroom'){
+    ctx.fillStyle='#8A5A3B';ctx.beginPath();
+    ctx.ellipse(0,-0.1*r,0.9*r,0.62*r,0,Math.PI,TAU);ctx.fill();
+    ctx.fillStyle='#F0E2CB';ctx.fillRect(-0.26*r,-0.12*r,0.52*r,0.9*r);
+    E(-0.3,-0.42,0.16,0.1,0,'rgba(255,255,255,0.35)');
+  } else if(kind==='tofu'){
+    ctx.fillStyle='#FBF3DF';ctx.beginPath();
+    if(ctx.roundRect)ctx.roundRect(-0.78*r,-0.7*r,1.56*r,1.4*r,0.2*r);
+    else ctx.rect(-0.78*r,-0.7*r,1.56*r,1.4*r);
+    ctx.fill();
+    ctx.fillStyle='rgba(196,166,116,0.55)';ctx.fillRect(-0.78*r,0.34*r,1.56*r,0.36*r);
+    ctx.fillStyle='rgba(255,255,255,0.6)';ctx.fillRect(-0.6*r,-0.52*r,0.7*r,0.16*r);
+  } else if(kind==='napa'){
+    E(0,0.06,0.62,0.92,0,'#EAF3D4');
+    ctx.fillStyle='#9CC85F';ctx.beginPath();
+    ctx.ellipse(0,-0.34*r,0.6*r,0.6*r,0,Math.PI,TAU);ctx.fill();
+    L([[-0.22,-0.5],[-0.2,0.7]],'rgba(150,180,110,0.8)',0.1);
+    L([[0.22,-0.5],[0.2,0.7]],'rgba(150,180,110,0.8)',0.1);
+  } else if(kind==='noodles'){
+    for(let k=-1;k<=1;k++)
+      L([[-0.85,0.3*k],[-0.3,0.3*k-0.28],[0.3,0.3*k+0.28],[0.85,0.3*k]],'#F2C64B',0.2);
+  } else if(kind==='crab'){
+    E(0,0.12,0.72,0.56,0,'#E24A2B');
+    L([[-0.72,-0.1],[-1.05,-0.5]],'#E24A2B',0.2); E(-1.15,-0.6,0.26,0.2,-0.6,'#FF6A46');
+    L([[0.72,-0.1],[1.05,-0.5]],'#E24A2B',0.2);  E(1.15,-0.6,0.26,0.2,0.6,'#FF6A46');
+    E(-0.24,0.02,0.1,0.1,0,'#3A1109'); E(0.24,0.02,0.1,0.1,0,'#3A1109');
+  } else if(kind==='dumpling'){
+    ctx.fillStyle='#F7E9CE';ctx.beginPath();
+    ctx.moveTo(-0.85*r,0.3*r);
+    ctx.quadraticCurveTo(0,-1.15*r,0.85*r,0.3*r);
+    ctx.quadraticCurveTo(0,0.85*r,-0.85*r,0.3*r);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(180,145,98,0.8)';ctx.lineWidth=0.09*r;
+    for(let k=-1;k<=1;k++){ctx.beginPath();
+      ctx.moveTo(k*0.34*r,-0.42*r);ctx.lineTo(k*0.34*r,0.02*r);ctx.stroke();}
+  } else {                                   /* lobster: the jackpot */
+    E(0,0.2,0.42,0.86,0,'#E01F16');
+    ctx.fillStyle='#FF5B44';ctx.beginPath();
+    ctx.moveTo(-0.42*r,0.8*r);ctx.lineTo(0,1.25*r);ctx.lineTo(0.42*r,0.8*r);ctx.closePath();ctx.fill();
+    L([[-0.4,-0.35],[-1.0,-0.72]],'#E01F16',0.19); E(-1.18,-0.86,0.34,0.24,-0.6,'#FF5B44');
+    L([[0.4,-0.35],[1.0,-0.72]],'#E01F16',0.19);  E(1.18,-0.86,0.34,0.24,0.6,'#FF5B44');
+    L([[-0.14,-0.75],[-0.4,-1.3]],'#FFD2C4',0.08);
+    L([[0.14,-0.75],[0.4,-1.3]],'#FFD2C4',0.08);
+    E(-0.16,-0.5,0.1,0.1,0,'#2A0906'); E(0.16,-0.5,0.1,0.1,0,'#2A0906');
+  }
+  ctx.restore();
+}
+
 function drawParticles(){
   for(const p of parts){ctx.globalAlpha=Math.max(0,p.life)*(p.soft?0.6:1);ctx.fillStyle=p.col;
     ctx.beginPath();ctx.arc(p.x,p.y,p.r*(p.soft?(1.6-p.life):p.life),0,TAU);ctx.fill();}
@@ -1170,8 +1367,8 @@ const TUT=[
  {h:'Hold to go higher',b:'A quick tap is a <b>short hop</b>, holding gives a <b>full jump</b>. The short hop is the one that collects chili — clear a wall by the smallest margin you can.',art:'hold'},
  {h:'Duck the chopsticks',b:'From 500m, hands reach into the pot for you. They pinch shut as you pass. At first they hang so high only the very peak of a full jump can reach them.',art:'chop'},
  {h:'They reach deeper',b:'Every 250m they come down a little. By 2000m a full jump gets you caught, and by 5000m the gap is barely taller than you are. That\u2019s boss mode.',art:'deep'},
- {h:'Chain the pods',b:'One pod per wall — a triple wall floats three. Worth 50 each, and chaining them multiplies. Greed is how you break 5,000.',art:'pod'},
- {h:'Same course, all night',b:'Everyone in the restaurant runs the identical track today, so the board is a fair fight. New course tomorrow.',art:'seed'}
+ {h:'Catch the ingredients',b:'Shrimp, tofu, crab, noodles \u2014 one per wall, so a triple wall floats three. Worth 50 each and chaining them multiplies. A red <b>lobster</b> pays 150.',art:'pod'},
+ {h:'Escape velocity',b:'Everyone runs the identical track today, so the board is a fair fight. Past <b>2,000m</b> you light a rocket and every metre counts double.',art:'seed'}
 ];
 function tutArt(k){
   const A={
@@ -1260,7 +1457,7 @@ $('pQuit').onclick=()=>{pass=null;menu();};
 
 /* ---------------- admin --------------------------------------------------- */
 let logoTaps=0,logoT=0;
-$('logo').addEventListener('click',()=>{
+$('brand').addEventListener('click',()=>{
   const now=Date.now();if(now-logoT>1200)logoTaps=0;logoT=now;logoTaps++;
   if(logoTaps>=5){logoTaps=0;$('pinIn').value='';$('pinErr').textContent='';
     hideAll();$('sPin').hidden=false;}
@@ -1284,7 +1481,7 @@ function netStatus(){
     :(NET.ok?'Network board connected':'Network unreachable — '+(NET.lastErr||'?'));
 }
 function openAdmin(){
-  $('adTitle').value=TITLE;renderAdmin();renderPerks();netStatus();
+  renderPerks();netStatus();
   hideAll();$('sAdmin').hidden=false;
 }
 $('adPull').onclick=async()=>{
@@ -1292,33 +1489,6 @@ $('adPull').onclick=async()=>{
   NET.today=null;NET.all=null;
   await netTop('daily');await netTop('lifetime');
   netStatus();b.textContent='Refresh network board';
-};
-function renderAdmin(){
-  $('adRows').innerHTML=BOARD.map((r,i)=>
-    '<div class="arow"><span class="p">'+(i+1)+'</span>'+
-    '<input class="ini" maxlength="3" value="'+r.i+'" data-f="i">'+
-    '<input class="scr" inputmode="numeric" value="'+r.s+'" data-f="s">'+
-    '<button class="del" data-del="'+i+'">×</button></div>').join('');
-  $('adRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{BOARD.splice(+b.dataset.del,1);renderAdmin();});
-}
-$('adAdd').onclick=()=>{BOARD.push({i:'AAA',s:0});renderAdmin();};
-$('adSave').onclick=()=>{
-  const out=[];
-  $('adRows').querySelectorAll('.arow').forEach(row=>{
-    const i=row.querySelector('[data-f="i"]').value.toUpperCase().replace(/[^A-Z]/g,'').padEnd(3,'A').slice(0,3);
-    out.push({i:i,s:parseInt(row.querySelector('[data-f="s"]').value,10)||0});
-  });
-  BOARD=out.sort((a,b)=>b.s-a.s);
-  TITLE=$('adTitle').value.trim()||CONFIG.BOARD_TITLE;
-  saveBoard();sSet('dd:title',TITLE);
-  $('adSave').textContent='Saved';setTimeout(()=>$('adSave').textContent='Save',1200);
-  renderAdmin();
-};
-$('adWipe').onclick=()=>{
-  const b=$('adWipe');
-  if(b.dataset.armed){BOARD=[];saveBoard();renderAdmin();delete b.dataset.armed;b.textContent='Clear';return;}
-  b.dataset.armed='1';b.textContent='Confirm?';
-  setTimeout(()=>{delete b.dataset.armed;b.textContent='Clear';},3000);
 };
 $('adPin').onclick=()=>{
   const v=prompt('New staff PIN (numbers only):',String(PIN));
@@ -1335,37 +1505,31 @@ function fitMenu(){
 }
 function menu(){state='menu';grab=null;hideAll();$('hud').hidden=true;$('sMenu').hidden=false;checkOrient();
   requestAnimationFrame(fitMenu);
-  $('seedTxt').innerHTML='COURSE #'+SEED
-    +(ghost?' · GHOST '+ghost.score+' ('+ghostLabel+')':'')
-    +(CONFIG.API_URL?'':'<br>LOCAL MODE — NO NETWORK BOARD');}
+  $('seedTxt').innerHTML='MISSION #'+SEED
+    +(ghost?' \u00b7 BEST '+ghost.score.toLocaleString():'');}
 function syncGhostBtn(){
   const b=$('bGhost');
-  if(!ghost){b.textContent='Ghost race: no run yet';b.classList.remove('on');b.disabled=true;return;}
+  if(!ghost){b.textContent='Chase your best: no run yet';b.classList.remove('on');b.disabled=true;return;}
   b.disabled=false;
-  b.textContent='Ghost race: '+(ghostOn?'on — '+ghostLabel:'off');
+  b.textContent='Chase your best: '+(ghostOn?'on':'off');
   b.classList.toggle('on',ghostOn);
 }
-$('bFriend').onclick=()=>{
-  if(!CONFIG.API_URL){alert('Network mode isn\u2019t set up yet — add API_URL in the CONFIG block at the top of this file.');return;}
-  const code=(prompt('Enter your friend\u2019s run code:')||'').trim().toUpperCase();
-  if(code)raceCode(code,null);
-};
-if(CONFIG.HUB_URL){const hb=$('bHub');hb.href=CONFIG.HUB_URL;hb.hidden=false;}
 $('rotSkip').onclick=()=>{portraitOK=true;sSet('dd:portraitOK','1');checkOrient();};
 
-/* Swap in a real logo by setting CONFIG.LOGO_URL. Until then this mark
-   stands in and matches the palette. */
+/* The real logo if it loads, a drawn mark if it doesn't. Also the way into
+   the staff panel: five taps. */
 (function brand(){
   const b=$('brand');if(!b)return;
+  $('venueLine').textContent=CONFIG.VENUE_LINE;
   if(CONFIG.LOGO_URL){
-    b.innerHTML='<img src="'+CONFIG.LOGO_URL+'" alt="Firepot">';
+    b.innerHTML='<img src="'+CONFIG.LOGO_URL+'" alt="Firepot Seafood & Hot Pot">';
     b.querySelector('img').onerror=()=>{b.innerHTML=mark();};
   } else b.innerHTML=mark();
   function mark(){return '<svg viewBox="0 0 64 54" fill="none" aria-label="Firepot">'
-    +'<path d="M32 3c3.4 6.2-.8 8.6 1.2 11.6 2-1 3.2-3 3.2-5.2 3.2 4.2 4.6 8.4 4.6 11.6a9 9 0 0 1-18 0c0-4.4 2.6-9.2 9-18z" fill="#FF5A1F"/>'
-    +'<path d="M9 29h46" stroke="#FFB03A" stroke-width="2.6" stroke-linecap="round"/>'
-    +'<path d="M13 32h38l-2.6 13.4A4.5 4.5 0 0 1 44 49H20a4.5 4.5 0 0 1-4.4-3.6z" stroke="#FFB03A" stroke-width="2.6" stroke-linejoin="round"/>'
-    +'<path d="M9.5 33c-3.4.4-4 4.6-.8 5.8M54.5 33c3.4.4 4 4.6.8 5.8" stroke="#FFB03A" stroke-width="2.2" stroke-linecap="round"/>'
+    +'<path d="M32 3c3.4 6.2-.8 8.6 1.2 11.6 2-1 3.2-3 3.2-5.2 3.2 4.2 4.6 8.4 4.6 11.6a9 9 0 0 1-18 0c0-4.4 2.6-9.2 9-18z" fill="#C8202B"/>'
+    +'<path d="M9 29h46" stroke="#E89468" stroke-width="2.6" stroke-linecap="round"/>'
+    +'<path d="M13 32h38l-2.6 13.4A4.5 4.5 0 0 1 44 49H20a4.5 4.5 0 0 1-4.4-3.6z" stroke="#E89468" stroke-width="2.6" stroke-linejoin="round"/>'
+    +'<path d="M9.5 33c-3.4.4-4 4.6-.8 5.8M54.5 33c3.4.4 4 4.6.8 5.8" stroke="#E89468" stroke-width="2.2" stroke-linecap="round"/>'
     +'</svg>';}
 })();
 
@@ -1385,7 +1549,6 @@ function frame(ts){
 addEventListener('resize',()=>{resize();if(state!=='play'){px=W*(LAND?0.16:0.20);py=groundY;}});
 addEventListener('orientationchange',()=>setTimeout(resize,120));  // iOS reports late
 COURSE=buildCourse(SEED);   // also fills PODS
-$('oCodeHint').textContent=COPYHINT;
 resize();loadAll().then(menu);
 requestAnimationFrame(frame);
 })();
