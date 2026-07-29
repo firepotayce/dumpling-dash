@@ -12,6 +12,7 @@
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}   /* beats any inline display */
   html,body{height:100%;overflow:hidden;background:var(--void)}
   body{font-family:var(--mono);display:flex;align-items:center;justify-content:center;
     touch-action:none;user-select:none;-webkit-user-select:none}
@@ -173,6 +174,31 @@
   /* --- tutorial text group (stacks in portrait, sits beside art in landscape) --- */
   .tuttext{display:flex;flex-direction:column;align-items:center;gap:18px}
 
+  .link.hub{text-decoration:none;display:inline-block}
+
+  /* Every vertical measurement on the menu is tied to stage height, so a short
+     desktop embed shrinks the whole thing to fit instead of scrolling. */
+  .screen{padding:clamp(12px,3.6vh,30px) clamp(18px,4vw,26px)}
+  #brand{margin-bottom:clamp(5px,1.7vh,14px)}
+  #brand svg,#brand img{height:clamp(26px,6.4vh,52px)}
+  .eyebrow{margin-bottom:clamp(5px,1.7vh,14px)}
+  h1{font-size:clamp(30px,min(13vw,9.4vh),66px)}
+  .rule{margin:clamp(8px,2.3vh,20px) 0}
+  .cta{margin-top:clamp(9px,2.6vh,24px);padding:clamp(9px,1.5vh,13px) clamp(20px,3.4vw,30px);
+       font-size:clamp(15px,2.4vh,19px)}
+  .link{margin-top:clamp(2px,1.3vh,13px);padding:clamp(3px,.8vh,7px) 12px}
+  .seedline{margin-top:clamp(6px,1.8vh,16px)}
+
+  /* Second tier, applied by script only if the menu still doesn't fit —
+     font metrics vary with whichever display face actually loaded. */
+  #stage.tight h1{font-size:clamp(24px,7vh,42px)}
+  #stage.tight #brand svg,#stage.tight #brand img{height:clamp(20px,4.4vh,32px)}
+  #stage.tight .rule{margin:7px 0}
+  #stage.tight .cta{margin-top:9px;padding:8px 22px;font-size:15px}
+  #stage.tight .link{margin-top:1px;padding:2px 10px;font-size:10px}
+  #stage.tight .screen{padding:9px 18px}
+  #stage.tight .seedline{margin-top:5px}
+
   /* --- landscape: the intended way to play --- */
   @media (orientation:landscape) and (max-height:520px){
     .screen{padding:14px 22px}
@@ -250,7 +276,7 @@
     <button class="link" id="bGhost">Ghost race: off</button>
     <button class="link" id="bFriend">Race a friend's run</button>
     <button class="link" id="bPass">Pass &amp; play</button>
-    <a class="link" id="bHub" href="#" hidden style="text-decoration:none;display:inline-block">← Arcade</a>
+    <a class="link hub" id="bHub" href="#" hidden>← Arcade</a>
     <div class="seedline" id="seedTxt"></div>
   </div>
 
@@ -652,6 +678,7 @@ function resize(){
   if(state!=='play')px=W*(LAND?0.16:0.20);
   seedStars();
   checkOrient();
+  requestAnimationFrame(fitMenu);
 }
 
 /* Prompt for landscape, but never force it: orientation lock only works in
@@ -1301,7 +1328,13 @@ $('adPin').onclick=()=>{
 $('adBack').onclick=menu;
 
 /* ---------------- menu ---------------------------------------------------- */
+function fitMenu(){
+  const el=$('sMenu');if(!el||el.hidden)return;
+  stage.classList.remove('tight');
+  if(el.scrollHeight>el.clientHeight+2)stage.classList.add('tight');
+}
 function menu(){state='menu';grab=null;hideAll();$('hud').hidden=true;$('sMenu').hidden=false;checkOrient();
+  requestAnimationFrame(fitMenu);
   $('seedTxt').innerHTML='COURSE #'+SEED
     +(ghost?' · GHOST '+ghost.score+' ('+ghostLabel+')':'')
     +(CONFIG.API_URL?'':'<br>LOCAL MODE — NO NETWORK BOARD');}
