@@ -465,7 +465,7 @@ const GRAV=2700, JUMPV=860, CUT=0.55;
 const SPD0=272, SPDCAP=620;                     // 20% slower off the line
 const COYOTE=0.10, BUFFER=0.13, UPM=24;         // world units per displayed metre
 const PH=30;                                    // dumpling standing height, world units
-/* Escape velocity. Past 2000m the dumpling lights a rocket: world speed is
+/* Escape velocity. Past 1500m the dumpling lights a rocket: world speed is
    already capped, so instead each metre of track counts double. The run feels
    like it's covering ground without the obstacles arriving any faster. */
 const BOOST_AT=1500, BOOST=2;
@@ -755,8 +755,8 @@ let grab=null,pass=null,livesLeft=0,invuln=0,cheated=false,boardTab='today';
 const HEATS=[[0,'Simmer'],[250,'Boil'],[500,'Rolling boil'],[1000,'Volcanic'],
              [1500,'Orbit'],[4000,'Deep space']];
 /* Shown against boosted distance so they land where the player sees them. */
-const MILES=[[250,'Ignition'],[1500,'Escape velocity'],
-             [4000,'Firepot orbit'],[10000,'To broth & beyond']];
+const MILES=[[250,'Ignition'],[1000,'Full boil ahead'],[1500,'Escape velocity'],
+             [4000,'Firepot orbit'],[10000,'To brothfinity & beyond']];
 function heatName(m){let n='Simmer';for(const h of HEATS)if(m>=h[0])n=h[1];return n;}
 function metres(){return Math.floor(wd/UPM);}
 function shownM(){return Math.floor(shownFrom(Math.max(0,metres()-PERK.start)));}
@@ -825,8 +825,8 @@ function die(by,o){
    next person to chase. */
 let shareText='';
 function buildShareCard(m){
-  const rows=(boardTab==='local'?localRows():(NET.today||localRows()));
-  const top=(rows&&rows.length)?rows[0].s:0;
+  const rows=cleanRows(boardTab==='local'?BOARD:(NET.today||BOARD));
+  const top=rows.length?Math.max.apply(null,rows.map(r=>r.s)):0;
   const beat=Math.max(top,score);
   $('scHead').textContent='I survived '+m.toLocaleString()+'m in the Firepot';
   $('scBeat').textContent=beat>score?'Can you beat '+beat.toLocaleString()+'?'
@@ -851,7 +851,7 @@ function showOver(){hideAll();$('sOver').hidden=false;paintBoard();}
    can't bury everyone else. */
 function capPerName(rows,limit){
   const seen={},out=[];
-  for(const r of rows.slice().sort((a,b)=>b.s-a.s)){
+  for(const r of cleanRows(rows).sort((a,b)=>b.s-a.s)){
     const k=(r.i||'').toUpperCase();
     seen[k]=(seen[k]||0)+1;
     if(seen[k]<=CONFIG.MAX_PER_NAME)out.push(r);
@@ -870,6 +870,16 @@ function medalMap(rows){
   return m;
 }
 const MEDAL=['','gold','silver','bronze'];
+/* Rows arrive from a spreadsheet, so treat every field as suspect: a blank
+   cell or an older deployment's shape must not take the screen down. */
+function cleanRows(rows){
+  if(!Array.isArray(rows))return [];
+  return rows.filter(r=>r&&r.s!==null&&r.s!==undefined&&r.s!==''
+                        &&Number.isFinite(Number(r.s))&&String(r.i||'').trim())
+             .map(r=>({i:String(r.i).toUpperCase().replace(/[^A-Z]/g,'').slice(0,4)||'PLR',
+                       s:Math.round(Number(r.s))}))
+             .filter(r=>r.s>=0);
+}
 function rowHtml(r,i,mine,medals){
   const you=(mine&&r.i===mine.i&&r.s===mine.s)?' you':'';
   const md=medals?(medals[(r.i||'').toUpperCase()]||0):0;
@@ -881,10 +891,13 @@ function rowHtml(r,i,mine,medals){
 async function paintBoard(mine){
   const box=$('oBoard');
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.t===boardTab));
-  const render=rows=>{
-    if(!rows||!rows.length){box.innerHTML='<div class="empty">No runs yet — be first</div>';return;}
-    const medals=medalMap(rows);
-    box.innerHTML=rows.map((r,i)=>rowHtml(r,i,mine,medals)).join('');
+  const render=raw=>{
+    try{
+      const rows=capPerName(raw,CONFIG.BOARD_SIZE);
+      if(!rows.length){box.innerHTML='<div class="empty">No runs yet — be first</div>';return;}
+      const medals=medalMap(rows);
+      box.innerHTML=rows.map((r,i)=>rowHtml(r,i,mine,medals)).join('');
+    }catch(e){box.innerHTML='<div class="empty">Board unavailable</div>';}
   };
   if(boardTab==='local'){render(localRows());return;}
   if(!CONFIG.API_URL){box.innerHTML='<div class="empty">Network board not set up yet<br>Showing this device instead</div>'
@@ -1474,7 +1487,7 @@ function tutArt(k){
    <rect x="108" y="66" width="5" height="22" rx="2.5" fill="#C08B52"/></svg>`,
   hold:`<svg viewBox="0 0 154 108"><path d="M8 88h138" stroke="#FF5A1F" stroke-width="2"/>
    <path d="M16 88 Q34 60 52 88" stroke="#8E93A8" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/>
-   <path d="M76 88 Q104 12 132 88" stroke="#FFB03A" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/
+   <path d="M76 88 Q104 12 132 88" stroke="#FFB03A" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/>
    <text x="34" y="102" fill="#8E93A8" font-size="8" text-anchor="middle" font-family="monospace">TAP</text>
    <text x="104" y="102" fill="#FFB03A" font-size="8" text-anchor="middle" font-family="monospace">HOLD</text>
    <ellipse cx="104" cy="28" rx="12" ry="13" fill="#F7E9CE"/></svg>`,
@@ -1638,9 +1651,17 @@ $('bAgain').onclick=()=>play();
 $('bMenu').onclick=menu;
 
 /* ---------------- boot ---------------------------------------------------- */
+let frameErrs=0;
 function frame(ts){
-  if(!last)last=ts;let dt=(ts-last)/1000;last=ts;if(dt>0.05)dt=0.05;
-  update(dt);draw();requestAnimationFrame(frame);
+  /* Queue the next frame BEFORE doing any work. Previously this sat at the end,
+     so a single throw anywhere in update or draw broke the chain and the game
+     froze for good — indistinguishable from a crash. Now a bad frame costs one
+     frame. */
+  requestAnimationFrame(frame);
+  if(!last)last=ts;
+  let dt=(ts-last)/1000;last=ts;if(dt>0.05)dt=0.05;
+  try{ update(dt); draw(); }
+  catch(e){ if(frameErrs++<3)console.error('Dumpling Dash frame error:',e); }
 }
 addEventListener('resize',()=>{resize();if(state!=='play'){px=W*(LAND?0.16:0.20);py=groundY;}});
 addEventListener('orientationchange',()=>setTimeout(resize,120));  // iOS reports late
