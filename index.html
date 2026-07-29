@@ -435,14 +435,37 @@ function pickType(m,r){
   return 'low';
 }
 
-/* One chili bomb per wall, arced over the top along the line the hop takes. */
+/* One chili bomb per wall, but the arc sits at one of three heights chosen
+   per wall. Reach, for reference: grounded you can take anything under ~39,
+   a short hop reaches ~80, a full jump tops out near 176.
+     skim  - clears the wall by a hair, a short hop gets it
+     arc   - comfortable mid-jump
+     loop  - only at the peak of a full committed jump
+   So the same wall can be a free grab or a real decision depending on the
+   roll, which is what makes the chain worth chasing. */
 function addPods(pods,u,wid,h,n,r){
+  const st=r();
+  const base = st<0.44 ? h+13 : st<0.79 ? h+44 : h+80;
+  const lift = st<0.44 ? 9    : st<0.79 ? 15   : 20;
   for(let i=0;i<n;i++){
     const f=n===1?0.5:i/(n-1);
     pods.push({u:u-4+f*(wid+8),
-               y:h+18+Math.sin(Math.PI*(0.22+0.56*f))*14,
+               y:Math.min(150,base+Math.sin(Math.PI*(0.20+0.60*f))*lift),
                got:false,ph:r()*TAU});
   }
+}
+
+/* Low pods strung across an empty gap. Deliberately kept under 32 so they're
+   collected by staying on the ground — jumping early to set up the next wall
+   means giving them up. That tension is the point, and it rewards the flat
+   running you need under chopsticks anyway. */
+function gapPods(pods,from,to,r){
+  const span=to-from;
+  if(span<240||r()<0.52)return;
+  const k=1+Math.floor(r()*3),step=46,mid=from+span*0.5;
+  const start=mid-(k-1)*step*0.5;
+  for(let i=0;i<k;i++)
+    pods.push({u:start+i*step,y:11+r()*19,got:false,ph:r()*TAU});
 }
 
 let COURSE=[],PODS=[];
@@ -451,32 +474,41 @@ function buildCourse(seed){
   let u=1200,n=0;
   while(u<134000){                       // spans past 5000m
     const m=u/UPM,t=pickType(m,r);
-    // extra breathing room early: the first 250m should be a walk
-    const ease=1+0.85*Math.max(0,1-m/600);
+    // A little extra room early, but nothing like the stroll it used to be.
+    const ease=1+0.30*Math.max(0,1-m/500);
+    // Never let a gap fall below what a jump physically needs to land and
+    // reset, whatever the dice say.
+    const floor=w=>leapLen(u)*1.12+w+46;
+    const gap=(w,base,spread)=>Math.max(floor(w),
+                leapLen(u)+w+(base+r()*spread)*ease);
 
     if(t==='low'){
       const w=wallCount(m,r),wid=w*6+(w-1)*9,h=26+r()*12;
       out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5});
       addPods(pods,u,wid,h,w,r);
-      u+=leapLen(u)+wid+(140+r()*200)*ease;
+      const e0=u+wid; u+=gap(wid,92,138); gapPods(pods,e0,u,r);
     }
     else if(t==='tall'){
       const h=54+r()*16;
       out.push({u:u,t:'tall',n:1,w:8,h:h,ceil:1e5});
       addPods(pods,u,8,h,1,r);
-      u+=leapLen(u)+(150+r()*180)*ease;
+      const e0=u+8; u+=gap(8,104,126); gapPods(pods,e0,u,r);
     }
     else if(t==='chop'){
       const c=reachAt(m,r),w=14+r()*(10+14*Math.min(1,(m-500)/3500));
       out.push({u:u,t:'chop',n:0,w:w,h:0,ceil:c,ph:r()*TAU});
-      if(c>PH+46&&r()<0.5)
-        pods.push({u:u+w*0.5,y:Math.min(c-PH-10,20+r()*22),got:false,ph:r()*TAU});
-      u+=w+(170+r()*210)*ease;
+      if(c>PH+46&&r()<0.55)
+        pods.push({u:u+w*0.5,y:Math.min(c-PH-10,14+r()*38),got:false,ph:r()*TAU});
+      const e0=u+w; u+=Math.max(w+150,w+(118+r()*148)*ease); gapPods(pods,e0,u,r);
     }
     else if(t==='pinch'){
-      const h=24+r()*5,win=24-8*Math.min(1,(m-2000)/2000);
+      /* The slot sits high, near the top of the arc, on purpose. Down low
+         you're moving vertically at ~770u/s and the timing window collapses to
+         under half a frame — unplayable. Near the apex you're barely moving,
+         so the same size gap gives roughly three frames of tolerance. */
+      const h=82+r()*20, win=30-6*Math.min(1,(m-2000)/2500);
       out.push({u:u,t:'pinch',n:1,w:9,h:h,ceil:Math.round(h+PH+win),ph:r()*TAU});
-      u+=leapLen(u)*0.75+(160+r()*170);
+      u+=leapLen(u)*0.9+(112+r()*126);
     }
     else {  /* gauntlet: duck, hop, duck — no room to panic */
       const c=Math.max(reachAt(m,r),PH+20),sh=22+r()*6;
@@ -487,9 +519,10 @@ function buildCourse(seed){
       out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:Math.max(c-6,PH+18),ph:r()*TAU});
       u+=leapLen(u)+(200+r()*160);
     }
-    if(n%8===7)u+=leapLen(u)*0.7;        // a breath every eighth
+    if(n%10===9)u+=leapLen(u)*0.6;       // a breath every tenth
     n++;
   }
+  pods.sort((a,b)=>a.u-b.u);   // the runtime sweep assumes ascending order
   PODS=pods;
   return out;
 }
