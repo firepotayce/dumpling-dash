@@ -432,7 +432,7 @@ const CONFIG={
   VENUE_LINE:'Firepot Seafood & Hot Pot \u00b7 Stafford, TX',
   MAX_PER_NAME:3,          // one player may hold up to this many board rows
   GAME:'dumpling',         // this game's id — every game in the arcade needs a unique one
-  API_URL:'https://script.google.com/macros/s/AKfycbyhUmNb5TH8Nl6BIIj2m7AnZ8ZfhLAG3gX8H6dMEgBcVfBZ0QWT44yY4zlGB8Qzknt2/exec',
+  API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',
   API_KEY:'firepot-2026',  // <-- must match SECRET in the Apps Script
   VENUE:'Stafford',
   DEFAULT_PIN:'1357',
@@ -500,6 +500,17 @@ function reachAt(m,r){
   return Math.round(Math.max(44,Math.min(190,(175-130*p)+(r()-0.5)*2*(10+6*p))));
 }
 
+/* One new obstacle at a time. Meeting five kinds inside the first ten seconds
+   reads as noise; meeting one every few hundred metres reads as a game. */
+function lowKind(m,r){
+  const pool=['meat'];
+  if(m>=260)pool.push('balls');
+  if(m>=700)pool.push('chili');
+  if(m>=1200)pool.push('splash');
+  return pool[Math.floor(r()*pool.length)];
+}
+function tallKind(m,r){return (m>=1500&&r()<0.45)?'lobster':'mushroom';}
+
 /* Walls: singles from the off, doubles from 250m, triples from 1000m. */
 function wallCount(m,r){
   if(m<250)return 1;
@@ -546,7 +557,7 @@ function addPods(pods,u,wid,h,n,r){
 
 /* Everything you can catch is worth 50 and chains multiply. Lobster is not on
    this list — it's the thing trying to catch you. */
-const ING=['shrimp','fishball','mushroom','tofu','napa','noodles','crab','dumpling'];
+const ING=['shrimp','tofu','napa','noodles','crab','dumpling'];
 function pickIng(r){return ING[Math.floor(r()*ING.length)];}
 
 /* Low pods strung across an empty gap. Deliberately kept under 32 so they're
@@ -578,13 +589,13 @@ function buildCourse(seed){
 
     if(t==='low'){
       const w=wallCount(m,r),wid=w*6+(w-1)*9,h=26+r()*12;
-      out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5,kind:r()<0.5?'tofu':'balls'});
+      out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5,kind:lowKind(m,r)});
       addPods(pods,u,wid,h,w,r);
       const e0=u+wid; u+=gap(wid,92,138); gapPods(pods,e0,u,r);
     }
     else if(t==='tall'){
       const h=54+r()*16;
-      out.push({u:u,t:'tall',n:1,w:8,h:h,ceil:1e5,kind:r()<0.62?'lobster':'plates'});
+      out.push({u:u,t:'tall',n:1,w:8,h:h,ceil:1e5,kind:tallKind(m,r)});
       addPods(pods,u,8,h,1,r);
       const e0=u+8; u+=gap(8,104,126); gapPods(pods,e0,u,r);
     }
@@ -608,7 +619,7 @@ function buildCourse(seed){
       const c=Math.max(reachAt(m,r),PH+20),sh=22+r()*6;
       out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:c,ph:r()*TAU});
       u+=hopLen(u)*0.6+80;
-      out.push({u:u,t:'low',n:1,w:6,h:sh,ceil:1e5,kind:'tofu'});
+      out.push({u:u,t:'low',n:1,w:6,h:sh,ceil:1e5,kind:'meat'});
       u+=hopLen(u)*0.8+80;
       out.push({u:u,t:'chop',n:0,w:16+r()*10,h:0,ceil:Math.max(c-6,PH+18),ph:r()*TAU});
       u+=leapLen(u)+(200+r()*160);
@@ -755,7 +766,7 @@ let grab=null,pass=null,livesLeft=0,invuln=0,cheated=false,boardTab='today';
 const HEATS=[[0,'Simmer'],[250,'Boil'],[500,'Rolling boil'],[1000,'Volcanic'],
              [1500,'Orbit'],[4000,'Deep space']];
 /* Shown against boosted distance so they land where the player sees them. */
-const MILES=[[250,'Ignition'],[1000,'Full boil ahead'],[1500,'Escape velocity'],
+const MILES=[[250,'We have liftoff'],[1000,'Full steam'],[1500,'Escape velocity'],
              [4000,'Firepot orbit'],[10000,'To brothfinity & beyond']];
 function heatName(m){let n='Simmer';for(const h of HEATS)if(m>=h[0])n=h[1];return n;}
 function metres(){return Math.floor(wd/UPM);}
@@ -1126,34 +1137,128 @@ function drawGround(){eachVisible((o,sx)=>{if(o.h>0)drawSticks(sx,o);});}
 function drawHands(){eachVisible((o,sx)=>{if(o.ceil<1e4)drawChop(sx,o);});}
 
 function drawSticks(sx,o){
-  const k=o.kind||'tofu';
-  if(k==='lobster')return drawLobster(sx,o);
-  if(k==='plates')return drawPlates(sx,o);
-  if(k==='balls') return drawBalls(sx,o);
-  return drawTofu(sx,o);
+  const k=o.kind||'meat';
+  if(k==='lobster') return drawLobster(sx,o);
+  if(k==='mushroom')return drawMushroom(sx,o);
+  if(k==='splash')  return drawSplash(sx,o);
+  if(k==='chili')   return drawChili(sx,o);
+  if(k==='balls')   return drawBalls(sx,o);
+  return drawMeat(sx,o);
 }
-function unitW(o){return 6*S;}
+/* Every low obstacle repeats across the columns of its group. */
+function eachCol(o,fn){
+  const wS=6*S,gap=9*S,n=Math.max(1,o.n);
+  for(let i=0;i<n;i++)fn(i*(wS+gap),o.h*S,i);
+}
 
-/* Tofu: stacked blocks, one column per wall in the group. */
-function drawTofu(sx,o){
-  const wS=6*S,gap=9*S,h=o.h*S,n=Math.max(1,o.n);
-  for(let i=0;i<n;i++){
-    const x=sx+i*(wS+gap), blocks=Math.max(2,Math.round(o.h/11));
-    for(let b=0;b<blocks;b++){
-      const bh=h/blocks, y=groundY-h+b*bh;
-      const g=ctx.createLinearGradient(x,y,x+wS*1.9,y+bh);
-      g.addColorStop(0,'#FDF6E4');g.addColorStop(1,'#D6BE94');
+/* Marbled slices stacked on the board. */
+function drawMeat(sx,o){
+  eachCol(o,(dx,h)=>{
+    const cx=sx+dx+3*S, slices=Math.max(2,Math.round(o.h/12)), sh=h/slices;
+    for(let i=0;i<slices;i++){
+      const y=groundY-h+i*sh, w=17*S-i*1.2*S;
+      const g=ctx.createLinearGradient(cx-w,y,cx+w,y+sh);
+      g.addColorStop(0,'#F0968F');g.addColorStop(0.5,'#DF6B67');g.addColorStop(1,'#B33F42');
       ctx.fillStyle=g;ctx.beginPath();
-      if(ctx.roundRect)ctx.roundRect(x-wS*0.95,y+1*S,wS*2.9,bh-2*S,3*S);
-      else ctx.rect(x-wS*0.95,y+1*S,wS*2.9,bh-2*S);
+      if(ctx.roundRect)ctx.roundRect(cx-w,y+1*S,w*2,sh-2*S,sh*0.42);
+      else ctx.rect(cx-w,y+1*S,w*2,sh-2*S);
       ctx.fill();
-      ctx.fillStyle='rgba(255,255,255,0.5)';
-      ctx.fillRect(x-wS*0.75,y+3*S,wS*1.3,1.6*S);
+      ctx.strokeStyle='rgba(255,240,232,0.85)';ctx.lineWidth=1.5*S;ctx.lineCap='round';
+      for(let m2=-1;m2<=1;m2++){
+        ctx.beginPath();
+        ctx.moveTo(cx+m2*w*0.5-w*0.16,y+sh*0.28);
+        ctx.quadraticCurveTo(cx+m2*w*0.5,y+sh*0.5,cx+m2*w*0.5+w*0.16,y+sh*0.72);
+        ctx.stroke();
+      }
+      ctx.fillStyle='rgba(255,90,31,0.22)';ctx.fillRect(cx-w,y+sh*0.72,w*2,sh*0.24);
     }
-    ctx.fillStyle='rgba(255,90,31,0.26)';
-    ctx.fillRect(x-wS*0.95,groundY-h*0.32,wS*2.9,h*0.32);
-  }
+  });
 }
+
+/* Chili peppers stood on end, stem up. */
+function drawChili(sx,o){
+  eachCol(o,(dx,h,i)=>{
+    const cx=sx+dx+3*S, sway=Math.sin(clock*2+i)*0.05;
+    ctx.save();ctx.translate(cx,groundY);ctx.rotate(sway);
+    const g=ctx.createLinearGradient(-7*S,0,7*S,0);
+    g.addColorStop(0,'#8E0F09');g.addColorStop(0.42,'#E01F16');g.addColorStop(1,'#FF6A4E');
+    ctx.fillStyle=g;ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.quadraticCurveTo(-8*S,-h*0.45,-2.5*S,-h*0.9);
+    ctx.quadraticCurveTo(0,-h*1.02,2.5*S,-h*0.9);
+    ctx.quadraticCurveTo(8*S,-h*0.45,0,0);
+    ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.beginPath();
+    ctx.ellipse(-2.4*S,-h*0.55,1.4*S,h*0.2,0.12,0,TAU);ctx.fill();
+    ctx.strokeStyle='#5F9B3A';ctx.lineWidth=3*S;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(0,-h*0.88);ctx.lineTo(3*S,-h*1.12);ctx.stroke();
+    ctx.fillStyle='#78B84A';ctx.beginPath();
+    ctx.ellipse(0.5*S,-h*0.9,4*S,2*S,-0.4,0,TAU);ctx.fill();
+    ctx.restore();
+  });
+}
+
+/* Broth erupting off the surface, crown and all. */
+function drawSplash(sx,o){
+  eachCol(o,(dx,h,i)=>{
+    const cx=sx+dx+3*S, t=clock*3+i*1.7, pulse=0.86+0.14*Math.sin(t);
+    const H=h*pulse;
+    ctx.save();
+    ctx.shadowColor='rgba(255,90,31,0.8)';ctx.shadowBlur=14*S;
+    const g=ctx.createLinearGradient(0,groundY,0,groundY-H);
+    g.addColorStop(0,'#8E1B07');g.addColorStop(0.5,'#FF5A1F');g.addColorStop(1,'#FFC463');
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.moveTo(cx-9*S,groundY);
+    ctx.quadraticCurveTo(cx-6*S,groundY-H*0.55,cx-3.5*S,groundY-H);
+    ctx.quadraticCurveTo(cx,groundY-H*0.78,cx+3.5*S,groundY-H);
+    ctx.quadraticCurveTo(cx+6*S,groundY-H*0.55,cx+9*S,groundY);
+    ctx.closePath();ctx.fill();
+    // side arms of the crown
+    for(const sd of[-1,1]){
+      ctx.beginPath();
+      ctx.moveTo(cx+sd*7*S,groundY);
+      ctx.quadraticCurveTo(cx+sd*13*S,groundY-H*0.44,cx+sd*10*S,groundY-H*0.62);
+      ctx.quadraticCurveTo(cx+sd*8*S,groundY-H*0.34,cx+sd*4*S,groundY);
+      ctx.closePath();ctx.fill();
+    }
+    // flung droplets
+    ctx.fillStyle='#FF7A2B';
+    for(let d=0;d<3;d++){
+      const a=t*0.9+d*2.1, dx2=Math.cos(a)*13*S, dy2=-H*0.9-Math.abs(Math.sin(a))*7*S;
+      ctx.beginPath();ctx.arc(cx+dx2,groundY+dy2,(1.8+d*0.5)*S,0,TAU);ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+/* Shiitake, star-scored cap. Tall obstacle, so it needs a real jump. */
+function drawMushroom(sx,o){
+  const h=o.h*S,cx=sx+4*S,capR=15*S,stemW=7*S;
+  const sg=ctx.createLinearGradient(cx-stemW,0,cx+stemW,0);
+  sg.addColorStop(0,'#C9B189');sg.addColorStop(0.45,'#F5EAD2');sg.addColorStop(1,'#BFA477');
+  ctx.fillStyle=sg;ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(cx-stemW*0.5,groundY-h*0.72,stemW,h*0.72,2.5*S);
+  else ctx.rect(cx-stemW*0.5,groundY-h*0.72,stemW,h*0.72);
+  ctx.fill();
+  const cg=ctx.createLinearGradient(cx,groundY-h,cx,groundY-h*0.6);
+  cg.addColorStop(0,'#8A5A3B');cg.addColorStop(1,'#4E2E1C');
+  ctx.fillStyle=cg;ctx.beginPath();
+  ctx.ellipse(cx,groundY-h*0.68,capR,h*0.34,0,Math.PI,TAU);ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx,groundY-h*0.68,capR,h*0.1,0,0,Math.PI);ctx.fill();
+  // the cream star cut
+  ctx.strokeStyle='#F3E6CC';ctx.lineWidth=2.6*S;ctx.lineCap='round';
+  for(let k=0;k<3;k++){
+    const a=k*Math.PI/3;
+    ctx.beginPath();
+    ctx.moveTo(cx-Math.cos(a)*capR*0.42,groundY-h*0.8-Math.sin(a)*h*0.13);
+    ctx.lineTo(cx+Math.cos(a)*capR*0.42,groundY-h*0.8+Math.sin(a)*h*0.13);
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(255,90,31,0.26)';
+  ctx.beginPath();ctx.ellipse(cx,groundY-h*0.62,capR*0.98,h*0.09,0,0,Math.PI);ctx.fill();
+}
+
 /* Fish balls: a heaped pile that reads instantly at speed. */
 function drawBalls(sx,o){
   const wS=6*S,gap=9*S,h=o.h*S,n=Math.max(1,o.n);
@@ -1170,17 +1275,7 @@ function drawBalls(sx,o){
     }
   }
 }
-/* Plate stack: rims catch the broth light. */
-function drawPlates(sx,o){
-  const h=o.h*S,cx=sx+4*S,plates=Math.max(3,Math.round(o.h/9)),ph=h/plates;
-  for(let i=0;i<plates;i++){
-    const y=groundY-i*ph-ph*0.5, rw=17*S;
-    ctx.fillStyle='#EFE6D4';ctx.beginPath();ctx.ellipse(cx,y,rw,ph*0.66,0,0,TAU);ctx.fill();
-    ctx.strokeStyle='rgba(255,90,31,0.55)';ctx.lineWidth=1.1*S;ctx.stroke();
-    ctx.fillStyle='rgba(0,0,0,0.16)';ctx.beginPath();
-    ctx.ellipse(cx,y+ph*0.3,rw*0.9,ph*0.3,0,0,TAU);ctx.fill();
-  }
-}
+
 /* A whole lobster rearing up out of the broth. Claws work as you approach,
    which is the tell that it's a hazard and not something to grab. */
 function drawLobster(sx,o){
@@ -1439,19 +1534,44 @@ function drawDumpling(){
     ctx.ellipse(px,groundY-1*S,r*0.85,r*0.2,0,0,TAU);ctx.fill();}
 }
 
-/* Drawn over the dumpling rather than inside its transform, so squash and
-   stretch doesn't warp the glass. */
+/* A dome over the top and front of the head, not a bubble round the whole
+   dumpling. Built in layers so it reads as hardware: seal ring, glass, gold
+   visor, then the highlight that sells the curve. Drawn outside the body
+   transform so squash and stretch can't warp it. */
 function drawHelmet(cx,cy,r){
+  const R=r*0.82, hx=r*0.16, hy=-r*0.34;
   ctx.save();ctx.translate(cx,cy);
-  ctx.fillStyle='rgba(180,220,255,0.16)';
-  ctx.beginPath();ctx.arc(0,-r*0.06,r*1.16,0,TAU);ctx.fill();
-  ctx.strokeStyle='rgba(200,232,255,0.7)';ctx.lineWidth=1.5*S;ctx.stroke();
-  ctx.strokeStyle='rgba(255,176,58,0.85)';ctx.lineWidth=2.4*S;ctx.lineCap='round';
-  ctx.beginPath();ctx.arc(0,-r*0.06,r*1.16,-0.32,0.72);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,0.42)';
-  ctx.beginPath();ctx.ellipse(-r*0.44,-r*0.5,r*0.26,r*0.15,-0.6,0,TAU);ctx.fill();
-  ctx.fillStyle='rgba(142,147,168,0.55)';
-  ctx.beginPath();ctx.arc(-r*1.1,-r*0.06,r*0.2,0,TAU);ctx.fill();
+
+  // 1. seal ring where the helmet meets the body
+  ctx.fillStyle='rgba(126,132,152,0.9)';
+  ctx.beginPath();ctx.ellipse(hx,hy+R*0.74,R*0.92,R*0.24,0,0,TAU);ctx.fill();
+  ctx.strokeStyle='rgba(255,176,58,0.55)';ctx.lineWidth=1.4*S;ctx.stroke();
+
+  // 2. the glass, only over the top and front of the head
+  ctx.beginPath();ctx.arc(hx,hy,R,Math.PI*0.98,Math.PI*2.16);ctx.closePath();
+  const g=ctx.createLinearGradient(hx-R,hy-R,hx+R,hy+R);
+  g.addColorStop(0,'rgba(206,236,255,0.30)');
+  g.addColorStop(0.55,'rgba(150,200,240,0.14)');
+  g.addColorStop(1,'rgba(90,140,190,0.26)');
+  ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='rgba(214,240,255,0.85)';ctx.lineWidth=1.7*S;
+  ctx.beginPath();ctx.arc(hx,hy,R,Math.PI*0.98,Math.PI*2.16);ctx.stroke();
+
+  // 3. gold visor band across the front
+  ctx.strokeStyle='rgba(255,176,58,0.9)';ctx.lineWidth=3.2*S;ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(hx,hy,R*0.99,-0.62,0.5);ctx.stroke();
+  ctx.strokeStyle='rgba(255,232,180,0.5)';ctx.lineWidth=1.1*S;
+  ctx.beginPath();ctx.arc(hx,hy,R*0.8,-0.5,0.34);ctx.stroke();
+
+  // 4. specular highlight
+  ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.beginPath();ctx.ellipse(hx-R*0.42,hy-R*0.46,R*0.26,R*0.12,-0.68,0,TAU);ctx.fill();
+
+  // 5. side fitting with a status light
+  ctx.fillStyle='rgba(110,116,136,0.95)';
+  ctx.beginPath();ctx.ellipse(hx-R*0.92,hy+R*0.16,R*0.2,R*0.28,0,0,TAU);ctx.fill();
+  ctx.fillStyle=(Math.floor(clock*2)%2)?'#7FD46A':'rgba(127,212,106,0.35)';
+  ctx.beginPath();ctx.arc(hx-R*0.92,hy+R*0.08,R*0.08,0,TAU);ctx.fill();
   ctx.restore();
 }
 
@@ -1474,9 +1594,9 @@ function drawThrust(cx,cy,r){
 const TUT=[
  {h:'Tap to hop',b:'One thumb, anywhere. The dumpling runs on its own — you only decide when it leaves the ground.',art:'hop'},
  {h:'Hold to go higher',b:'A quick tap is a <b>short hop</b>, holding gives a <b>full jump</b>. The short hop is the one that collects chili — clear a wall by the smallest margin you can.',art:'hold'},
- {h:'Duck the chopsticks',b:'From 500m, hands reach into the pot for you. They pinch shut as you pass. At first they hang so high only the very peak of a full jump can reach them.',art:'chop'},
+ {h:'Duck the chopsticks',b:'Meat first, then fish balls, chilies, mushrooms, splashes and a lobster \u2014 one new hazard at a time. Overhead, hands reach in and pinch shut as you pass.',art:'chop'},
  {h:'They reach deeper',b:'Every 250m they come down a little. By 2000m a full jump gets you caught, and by 5000m the gap is barely taller than you are. That\u2019s boss mode.',art:'deep'},
- {h:'Catch the ingredients',b:'Shrimp, tofu, crab, noodles \u2014 one per wall, so a triple wall floats three. Worth 50 each, and chaining them multiplies. Greed is how you break 5,000.',art:'pod'},
+ {h:'Catch the ingredients',b:'Shrimp, tofu, crab, noodles \u2014 one per obstacle, so a triple stack floats three. Worth 50 each, and chaining them multiplies. Greed is how you break 5,000.',art:'pod'},
  {h:'Escape velocity',b:'Everyone runs the identical track today, so the board is a fair fight. Past <b>1,500m</b> you light a rocket and every metre counts double.',art:'seed'}
 ];
 function tutArt(k){
