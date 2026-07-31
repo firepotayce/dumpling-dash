@@ -435,7 +435,7 @@ const CONFIG={
   VENUE_LINE:'Firepot Seafood & Hot Pot \u00b7 Stafford, TX',
   MAX_PER_NAME:3,          // one player may hold up to this many board rows
   GAME:'dumpling',         // this game's id — every game in the arcade needs a unique one
-  API_URL:'https://script.google.com/macros/s/AKfycbxP3t1EjSiVxM5DCMro9CNaDqhDZiH8YtCUMa1S8_l-PVfBo0z303QxgWT2TIubDgJN/exec',
+  API_URL:'https://script.google.com/macros/s/AKfycbyZSI08aioJ8_qfhBCK7CxPxsztX2yEeIns40-t0c0_CU0BABYGgiQseeer3vBGE9VU/exec',
   API_KEY:'firepot-2026',  // <-- must match SECRET in the Apps Script
   VENUE:'Stafford',
   DEFAULT_PIN:'1357',
@@ -672,7 +672,8 @@ function decGhost(s){
    Reads go over JSONP so CORS never enters the picture. Writes are a POST with
    Content-Type text/plain, which keeps it a "simple request" and skips the
    preflight — Apps Script cannot answer an OPTIONS preflight, so this matters. */
-let NET={ok:false,today:null,all:null,lastErr:''};
+const NEED_API=3;   // backend version this build expects
+let NET={ok:false,today:null,all:null,lastErr:'',ver:0};
 function jsonp(params){
   return new Promise((res,rej)=>{
     if(!CONFIG.API_URL)return rej('no api url');
@@ -690,7 +691,7 @@ function jsonp(params){
 async function netTop(scope){
   try{
     const d=await jsonp({a:'top',game:CONFIG.GAME,scope:scope,course:SEED,limit:CONFIG.BOARD_SIZE});
-    if(d&&d.ok){NET.ok=true;NET[scope==='daily'?'today':'all']=d.rows;return d.rows;}
+    if(d&&d.ok){NET.ok=true;NET.ver=d.v||0;NET[scope==='daily'?'today':'all']=d.rows;return d.rows;}
     NET.lastErr=(d&&d.error)||'bad response';
   }catch(e){NET.ok=false;NET.lastErr=String(e);}
   return null;
@@ -702,8 +703,12 @@ async function netSubmit(run){
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify(Object.assign({k:CONFIG.API_KEY,a:'submit'},run))});
     const d=await r.json();
-    if(d&&d.ok){NET.ok=true;NET.lastErr='';return d;}
-    NET.lastErr=(d&&d.error)||'rejected by server';
+    if(d&&d.ok){NET.ok=true;NET.ver=d.v||0;NET.lastErr='';return d;}
+    /* Only the pre-2026-07-31 script emits 'score mismatch'. Seeing it means the
+       URL is still serving old code, whatever was pasted into the editor. */
+    NET.lastErr=(d&&d.error==='score mismatch')
+      ? 'backend out of date \u2014 redeploy'
+      : ((d&&d.error)||'rejected by server');
   }catch(e){NET.lastErr=String(e);}
   return null;
 }
@@ -1209,7 +1214,7 @@ function waterline(cx,rx){
    and o.h is exactly how much of it you have to get over. */
 function drawBalls(sx,o){
   eachCol(o,(dx,h,i)=>{
-    const cx=sx+dx+3*S, R=h*1.7, cy=groundY-h+R;      // exposed height == h
+    const cx=sx+dx+3*S, R=h*1.36, cy=groundY-h+R;     // exposed height stays h
     const ball=()=>{
       const g=ctx.createRadialGradient(cx-R*0.32,cy-R*0.42,R*0.12,cx,cy,R);
       g.addColorStop(0,'#FFFCF2');g.addColorStop(0.62,'#EDDCB8');g.addColorStop(1,'#B99F72');
@@ -1344,68 +1349,99 @@ function drawSplash(sx,o){
   });
 }
 
-/* One enormous claw breaking the surface, with the head as a dark shape
-   below it. Reads as something rising out of the pot at you rather than a
-   whole lobster improbably standing on the bottom. */
+/* One enormous claw breaking the surface, with the head as a dark mass below
+   it. Proportions are keyed to the exposed height so the animal always reads
+   as the biggest thing in the pot — a lobster smaller than a fish ball was
+   the thing that looked wrong. Only the claw is a hazard; the head is scenery
+   under the broth. */
 function drawLobster(sx,o){
   const h=o.h*S,cx=sx+4*S;
   const d=(o.u-wd), near=Math.max(0,1-Math.abs(d)/320);
-  const open=0.10+0.30*(0.5+0.5*Math.sin(clock*(2.6+near*7)+(o.ph||0)));
-  const bob=Math.sin(clock*1.5+(o.ph||0))*2.5*S;
+  const open=0.12+0.32*(0.5+0.5*Math.sin(clock*(2.6+near*7)+(o.ph||0)));
+  const bob=Math.sin(clock*1.5+(o.ph||0))*3*S;
+  // Keyed so the head is always the widest thing in the pot. A lobster that
+  // measured smaller than a fish ball was what looked wrong.
+  const HW=h*0.82;
 
-  // head and antennae, under the broth
+  // head, eyes, antennae and legs — all below the waterline
   submerged(()=>{
-    ctx.fillStyle='#8E0F09';
-    ctx.beginPath();ctx.ellipse(cx,groundY+16*S+bob,20*S,12*S,0,0,TAU);ctx.fill();
-    ctx.fillStyle='#2A0906';
-    ctx.beginPath();ctx.arc(cx+7*S,groundY+11*S+bob,3*S,0,TAU);ctx.fill();
-    ctx.beginPath();ctx.arc(cx-7*S,groundY+11*S+bob,3*S,0,TAU);ctx.fill();
-    ctx.strokeStyle='#C0180F';ctx.lineWidth=2.2*S;ctx.lineCap='round';
-    for(const sd of[-1,1]){
-      ctx.beginPath();ctx.moveTo(cx+sd*13*S,groundY+14*S+bob);
-      ctx.quadraticCurveTo(cx+sd*26*S,groundY+20*S+bob,cx+sd*30*S,groundY+34*S+bob);
+    const g=ctx.createLinearGradient(cx,groundY,cx,groundY+HW*1.5);
+    g.addColorStop(0,'#D8241A');g.addColorStop(1,'#5E0A05');
+    ctx.fillStyle=g;
+    ctx.beginPath();ctx.ellipse(cx,groundY+HW*0.72+bob,HW,HW*0.66,0,0,TAU);ctx.fill();
+    // carapace ridges
+    ctx.strokeStyle='rgba(50,5,3,0.5)';ctx.lineWidth=2*S;
+    for(let i=1;i<4;i++){
+      ctx.beginPath();
+      ctx.ellipse(cx,groundY+HW*0.72+bob,HW*(1-i*0.2),HW*0.66*(1-i*0.2),0,Math.PI*0.15,Math.PI*0.85);
       ctx.stroke();
     }
+    // eyes on stalks
+    ctx.strokeStyle='#C0180F';ctx.lineWidth=3*S;ctx.lineCap='round';
+    for(const sd of[-1,1]){
+      ctx.beginPath();
+      ctx.moveTo(cx+sd*HW*0.34,groundY+HW*0.3+bob);
+      ctx.lineTo(cx+sd*HW*0.5,groundY+HW*0.02+bob);ctx.stroke();
+      ctx.fillStyle='#2A0906';ctx.beginPath();
+      ctx.arc(cx+sd*HW*0.5,groundY+HW*0.02+bob,HW*0.13,0,TAU);ctx.fill();
+    }
+    // antennae sweeping back
+    ctx.strokeStyle='#C0180F';ctx.lineWidth=2.4*S;
+    for(const sd of[-1,1]){
+      ctx.beginPath();ctx.moveTo(cx+sd*HW*0.55,groundY+HW*0.5+bob);
+      ctx.quadraticCurveTo(cx+sd*HW*1.7,groundY+HW*0.9+bob,cx+sd*HW*2.1,groundY+HW*2.1+bob);
+      ctx.stroke();
+    }
+    // walking legs
+    ctx.lineWidth=2*S;
+    for(let i=0;i<3;i++){
+      const y=groundY+HW*(0.7+i*0.28)+bob;
+      for(const sd of[-1,1]){
+        ctx.beginPath();ctx.moveTo(cx+sd*HW*0.8,y);
+        ctx.lineTo(cx+sd*HW*1.45,y+HW*0.34);ctx.stroke();
+      }
+    }
   });
-  waterline(cx,17*S);
+  waterline(cx,HW*0.95);
 
-  ctx.save();ctx.translate(cx,groundY+bob*0.4);
-  // arm out of the water
-  const ag=ctx.createLinearGradient(0,0,0,-h*0.55);
-  ag.addColorStop(0,'#8E0F09');ag.addColorStop(1,'#D8241A');
-  ctx.strokeStyle=ag;ctx.lineWidth=8*S;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(0,4*S);
-  ctx.quadraticCurveTo(-4*S,-h*0.3,0,-h*0.55);ctx.stroke();
-  // elbow knuckle
+  ctx.save();ctx.translate(cx,groundY+bob*0.35);
+  // the arm coming up out of the broth
+  const ag=ctx.createLinearGradient(0,0,0,-h*0.5);
+  ag.addColorStop(0,'#7C0C06');ag.addColorStop(1,'#D8241A');
+  ctx.strokeStyle=ag;ctx.lineWidth=h*0.17;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,6*S);
+  ctx.quadraticCurveTo(-h*0.1,-h*0.24,0,-h*0.46);ctx.stroke();
   ctx.fillStyle='#C0180F';ctx.beginPath();
-  ctx.ellipse(0,-h*0.55,6*S,5*S,0,0,TAU);ctx.fill();
+  ctx.ellipse(0,-h*0.46,h*0.12,h*0.1,0,0,TAU);ctx.fill();
 
-  // the claw itself, oversized
-  ctx.translate(0,-h*0.58);
-  const cg=ctx.createLinearGradient(-12*S,0,12*S,-h*0.4);
-  cg.addColorStop(0,'#A31309');cg.addColorStop(0.5,'#E8291D');cg.addColorStop(1,'#FF8266');
+  // the claw, sized to dominate the silhouette
+  ctx.translate(0,-h*0.5);
+  const CW=h*0.5, CH=h*0.5;
+  const cg=ctx.createLinearGradient(-CW,0,CW,-CH);
+  cg.addColorStop(0,'#8E0F09');cg.addColorStop(0.45,'#E8291D');cg.addColorStop(1,'#FF8266');
   for(const jaw of[-1,1]){
     ctx.save();ctx.rotate(jaw*open);
     ctx.fillStyle=cg;
     ctx.beginPath();
-    ctx.moveTo(-3*S,2*S);
-    ctx.quadraticCurveTo(jaw*15*S,-h*0.14,jaw*11*S,-h*0.34);
-    ctx.quadraticCurveTo(jaw*7*S,-h*0.44,jaw*2.5*S,-h*0.42);
-    ctx.quadraticCurveTo(jaw*3*S,-h*0.2,3*S,2*S);
+    ctx.moveTo(-CW*0.2,4*S);
+    ctx.quadraticCurveTo(jaw*CW*1.5,-CH*0.3,jaw*CW*1.05,-CH*0.78);
+    ctx.quadraticCurveTo(jaw*CW*0.7,-CH,jaw*CW*0.22,-CH*0.94);
+    ctx.quadraticCurveTo(jaw*CW*0.3,-CH*0.42,CW*0.2,4*S);
     ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(120,12,6,0.55)';ctx.lineWidth=1.6*S;ctx.stroke();
     // serrated inner edge
-    ctx.strokeStyle='rgba(255,214,200,0.75)';ctx.lineWidth=1.3*S;
+    ctx.strokeStyle='rgba(255,220,206,0.8)';ctx.lineWidth=1.6*S;
     ctx.beginPath();
-    for(let k=0;k<4;k++){
-      const t2=k/4;
-      ctx.moveTo(jaw*(2.5+t2*2)*S,-h*(0.08+t2*0.28));
-      ctx.lineTo(jaw*(5.5+t2*2)*S,-h*(0.10+t2*0.28));
+    for(let k=0;k<5;k++){
+      const t2=k/5;
+      ctx.moveTo(jaw*CW*(0.24+t2*0.16),-CH*(0.16+t2*0.6));
+      ctx.lineTo(jaw*CW*(0.52+t2*0.2),-CH*(0.2+t2*0.6));
     }
     ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle='rgba(255,140,110,0.45)';
-  ctx.beginPath();ctx.ellipse(-4*S,-h*0.12,3.5*S,7*S,0.2,0,TAU);ctx.fill();
+  ctx.fillStyle='rgba(255,150,120,0.45)';
+  ctx.beginPath();ctx.ellipse(-CW*0.3,-CH*0.2,CW*0.2,CH*0.26,0.2,0,TAU);ctx.fill();
   ctx.restore();
 }
 
@@ -1845,9 +1881,13 @@ function renderPerks(){
 }
 function netStatus(){
   $('netDot').classList.toggle('on',NET.ok);
-  $('netTxt').textContent=!CONFIG.API_URL?'Local only \u2014 no API_URL set'
-    :(NET.ok?('Connected'+(NET.lastErr?' \u00b7 last error: '+NET.lastErr:''))
-            :'Unreachable \u2014 '+(NET.lastErr||'?'));
+  if(!CONFIG.API_URL){$('netTxt').textContent='Local only \u2014 no API_URL set';return;}
+  if(!NET.ok){$('netTxt').textContent='Unreachable \u2014 '+(NET.lastErr||'?');return;}
+  const stale=NET.ver<NEED_API;
+  $('netTxt').textContent='Connected \u00b7 backend v'+(NET.ver||'?')+
+    (stale?' \u2014 OUT OF DATE, needs v'+NEED_API:' \u2014 current')+
+    (NET.lastErr?' \u00b7 last error: '+NET.lastErr:'');
+  $('netDot').classList.toggle('on',!stale);
 }
 function openAdmin(){
   renderPerks();netStatus();
