@@ -130,6 +130,8 @@
   #practice{position:absolute;bottom:14px;left:0;right:0;z-index:3;pointer-events:none;
     text-align:center;font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:rgba(255,90,31,.7)}
   .sub.warn{color:var(--chili)}
+  .sub.ok{color:var(--scallion)}
+  .sub.fail{color:var(--chili)}
   .sharecode{margin-top:12px;font-family:var(--display);font-size:26px;letter-spacing:.22em;
     color:var(--ember);cursor:pointer}
   .sharehint{font-size:9px;letter-spacing:.2em;color:rgba(247,233,206,.35);margin-top:3px}
@@ -350,6 +352,7 @@
     <div class="sub" id="oDist"></div>
     <div class="sub pb" id="oPB" hidden>New personal best</div>
     <div class="sub warn" id="oPractice" hidden>Practice run — not submitted</div>
+    <div class="sub" id="oSaved" hidden></div>
 
     <div class="board">
       <div class="tabs">
@@ -699,8 +702,8 @@ async function netSubmit(run){
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify(Object.assign({k:CONFIG.API_KEY,a:'submit'},run))});
     const d=await r.json();
-    if(d&&d.ok){NET.ok=true;return d;}
-    NET.lastErr=(d&&d.error)||'rejected';
+    if(d&&d.ok){NET.ok=true;NET.lastErr='';return d;}
+    NET.lastErr=(d&&d.error)||'rejected by server';
   }catch(e){NET.lastErr=String(e);}
   return null;
 }
@@ -766,7 +769,8 @@ let grab=null,pass=null,livesLeft=0,invuln=0,cheated=false,boardTab='today';
 const HEATS=[[0,'Simmer'],[250,'Boil'],[500,'Rolling boil'],[1000,'Volcanic'],
              [1500,'Orbit'],[4000,'Deep space']];
 /* Shown against boosted distance so they land where the player sees them. */
-const MILES=[[250,'We have liftoff'],[1000,'Full steam'],[1500,'Escape velocity'],
+const MILES=[[250,'Full steam'],[750,'Full boil ahead!'],
+             [1500,'We have liftoff!'],[2500,'Escape velocity'],
              [4000,'Firepot orbit'],[10000,'To brothfinity & beyond']];
 function heatName(m){let n='Simmer';for(const h of HEATS)if(m>=h[0])n=h[1];return n;}
 function metres(){return Math.floor(wd/UPM);}
@@ -827,9 +831,8 @@ function die(by,o){
   buildShareCard(m);
   const wait=by==='grab'?940:560;
   if(pass){setTimeout(passNext,wait);return;}
-  const cut=BOARD.length<CONFIG.BOARD_SIZE?0:(BOARD[BOARD.length-1]?BOARD[BOARD.length-1].s:0);
   setTimeout(()=>{if(state!=='over')return;
-    if(score>cut&&score>0&&!cheated)openInitials();else showOver();},wait);
+    if(qualifies())openInitials();else showOver();},wait);
 }
 
 /* The takeaway: a line worth reading out at the table, and a number for the
@@ -855,6 +858,23 @@ $('scCopy').onclick=async()=>{
     b.textContent='Copied';setTimeout(()=>b.textContent='Copy to share',1600);
   }catch(e){b.textContent='Copy to share';}
 };
+
+/* Beating your own best always earns the name prompt. A full local board used
+   to lock you out of submitting a run that would have topped the shared board
+   outright. */
+function qualifies(){
+  if(cheated||score<=0)return false;
+  if(score>=best)return true;
+  if(BOARD.length<CONFIG.BOARD_SIZE)return true;
+  const low=BOARD.length?BOARD[BOARD.length-1].s:0;
+  if(score>low)return true;
+  if(CONFIG.API_URL){
+    const net=cleanRows(NET.today);
+    if(net.length<CONFIG.BOARD_SIZE)return true;
+    if(score>net[net.length-1].s)return true;
+  }
+  return false;
+}
 
 /* ---------------- board: today / all time / this device ------------------- */
 function showOver(){hideAll();$('sOver').hidden=false;paintBoard();}
@@ -944,12 +964,25 @@ async function submitInitials(){
   let name=ini.join('').replace(/[^A-Z]/g,'').slice(0,4);
   if(name.length<3)name=(name+'PLR').slice(0,3);
   const entry={i:name,s:score};
-  BOARD.push(entry);BOARD.sort((a,b)=>b.s-a.s);BOARD=BOARD.slice(0,CONFIG.BOARD_SIZE);
+  // Keep a deep local history. Showing eight doesn't mean discarding the rest —
+  // that used to let one player's eight runs lock everyone else out.
+  BOARD.push(entry);BOARD.sort((a,b)=>b.s-a.s);BOARD=BOARD.slice(0,60);
   saveBoard();hideAll();$('sOver').hidden=false;paintBoard(entry);
-  if(!CONFIG.API_URL||cheated)return;
+
+  const el=$('oSaved');
+  if(!CONFIG.API_URL||cheated){el.hidden=true;return;}
+  el.hidden=false;el.className='sub';el.textContent='Saving\u2026';
   const res=await netSubmit({game:CONFIG.GAME,initials:name,score:score,
     metres:shownM(),pods:pods,course:SEED,venue:CONFIG.VENUE});
-  if(res&&res.ok!==false){NET.today=null;NET.all=null;paintBoard(entry);}
+  if(res&&res.ok!==false){
+    el.className='sub ok';el.textContent='Saved to tonight\u2019s board';
+    NET.today=null;NET.all=null;paintBoard(entry);
+  }else{
+    // Silence was the whole problem: a rejected run looked exactly like a saved
+    // one. Say so on screen, and keep the reason for the staff panel.
+    el.className='sub fail';
+    el.textContent='Not saved \u2014 '+(NET.lastErr||'board unreachable');
+  }
 }
 /* ---------------- input --------------------------------------------------- */
 function down(e){if(state!=='play')return;e.preventDefault();buffer=BUFFER;held=true;}
@@ -1145,64 +1178,143 @@ function drawSticks(sx,o){
   if(k==='balls')   return drawBalls(sx,o);
   return drawMeat(sx,o);
 }
-/* Every low obstacle repeats across the columns of its group. */
 function eachCol(o,fn){
   const wS=6*S,gap=9*S,n=Math.max(1,o.n);
   for(let i=0;i<n;i++)fn(i*(wS+gap),o.h*S,i);
 }
 
-/* Marbled slices stacked on the board. */
+/* Nothing stands on the broth — it surfaces through it. Anything drawn inside
+   this is clipped below the waterline and dimmed, so it reads as the rest of
+   the object sitting under the surface. */
+function submerged(fn){
+  ctx.save();
+  ctx.beginPath();ctx.rect(-40,groundY,W+80,H-groundY+40);ctx.clip();
+  ctx.globalAlpha=0.34;
+  fn();
+  ctx.restore();
+}
+/* Meniscus plus a slow ring, so the contact point reads as liquid. */
+function waterline(cx,rx){
+  ctx.save();
+  ctx.strokeStyle='rgba(255,176,58,0.75)';ctx.lineWidth=1.7*S;
+  ctx.beginPath();ctx.ellipse(cx,groundY,rx,rx*0.2,0,0,TAU);ctx.stroke();
+  const p=(clock*0.75)%1;
+  ctx.globalAlpha=(1-p)*0.5;
+  ctx.strokeStyle='#FF5A1F';ctx.lineWidth=1.2*S;
+  ctx.beginPath();ctx.ellipse(cx,groundY,rx*(1+p*0.9),rx*0.2*(1+p*0.9),0,0,TAU);ctx.stroke();
+  ctx.restore();
+}
+
+/* One big fish ball per column, mostly under. Only the cap clears the broth,
+   and o.h is exactly how much of it you have to get over. */
+function drawBalls(sx,o){
+  eachCol(o,(dx,h,i)=>{
+    const cx=sx+dx+3*S, R=h*1.7, cy=groundY-h+R;      // exposed height == h
+    const ball=()=>{
+      const g=ctx.createRadialGradient(cx-R*0.32,cy-R*0.42,R*0.12,cx,cy,R);
+      g.addColorStop(0,'#FFFCF2');g.addColorStop(0.62,'#EDDCB8');g.addColorStop(1,'#B99F72');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,TAU);ctx.fill();
+    };
+    submerged(ball);
+    ctx.save();
+    ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();
+    ball();
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.beginPath();ctx.ellipse(cx-R*0.3,cy-R*0.86,R*0.2,R*0.09,-0.5,0,TAU);ctx.fill();
+    ctx.restore();
+    waterline(cx,Math.sqrt(Math.max(1,R*R-(cy-groundY)*(cy-groundY))));
+  });
+}
+
+/* A slice half in the broth, tipped up on its edge. */
 function drawMeat(sx,o){
-  eachCol(o,(dx,h)=>{
-    const cx=sx+dx+3*S, slices=Math.max(2,Math.round(o.h/12)), sh=h/slices;
-    for(let i=0;i<slices;i++){
-      const y=groundY-h+i*sh, w=17*S-i*1.2*S;
-      const g=ctx.createLinearGradient(cx-w,y,cx+w,y+sh);
-      g.addColorStop(0,'#F0968F');g.addColorStop(0.5,'#DF6B67');g.addColorStop(1,'#B33F42');
+  eachCol(o,(dx,h,i)=>{
+    const cx=sx+dx+3*S, w=15*S, H=h*1.5, tilt=-0.22+Math.sin(clock*1.4+i)*0.05;
+    const slab=()=>{
+      ctx.save();ctx.translate(cx,groundY-h+H*0.5);ctx.rotate(tilt);
+      const g=ctx.createLinearGradient(-w,0,w,0);
+      g.addColorStop(0,'#B33F42');g.addColorStop(0.45,'#E8827F');g.addColorStop(1,'#C05457');
       ctx.fillStyle=g;ctx.beginPath();
-      if(ctx.roundRect)ctx.roundRect(cx-w,y+1*S,w*2,sh-2*S,sh*0.42);
-      else ctx.rect(cx-w,y+1*S,w*2,sh-2*S);
+      if(ctx.roundRect)ctx.roundRect(-w,-H*0.5,w*2,H,w*0.42);
+      else ctx.rect(-w,-H*0.5,w*2,H);
       ctx.fill();
-      ctx.strokeStyle='rgba(255,240,232,0.85)';ctx.lineWidth=1.5*S;ctx.lineCap='round';
+      ctx.strokeStyle='rgba(255,240,232,0.9)';ctx.lineWidth=2*S;ctx.lineCap='round';
       for(let m2=-1;m2<=1;m2++){
         ctx.beginPath();
-        ctx.moveTo(cx+m2*w*0.5-w*0.16,y+sh*0.28);
-        ctx.quadraticCurveTo(cx+m2*w*0.5,y+sh*0.5,cx+m2*w*0.5+w*0.16,y+sh*0.72);
+        ctx.moveTo(m2*w*0.52-w*0.2,-H*0.24);
+        ctx.quadraticCurveTo(m2*w*0.52,0,m2*w*0.52+w*0.2,H*0.24);
         ctx.stroke();
       }
-      ctx.fillStyle='rgba(255,90,31,0.22)';ctx.fillRect(cx-w,y+sh*0.72,w*2,sh*0.24);
-    }
+      ctx.restore();
+    };
+    submerged(slab);
+    ctx.save();ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();slab();ctx.restore();
+    waterline(cx,w*1.05);
   });
 }
 
-/* Chili peppers stood on end, stem up. */
+/* Chili bobbing point-up, most of it under. */
 function drawChili(sx,o){
   eachCol(o,(dx,h,i)=>{
-    const cx=sx+dx+3*S, sway=Math.sin(clock*2+i)*0.05;
-    ctx.save();ctx.translate(cx,groundY);ctx.rotate(sway);
-    const g=ctx.createLinearGradient(-7*S,0,7*S,0);
-    g.addColorStop(0,'#8E0F09');g.addColorStop(0.42,'#E01F16');g.addColorStop(1,'#FF6A4E');
-    ctx.fillStyle=g;ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.quadraticCurveTo(-8*S,-h*0.45,-2.5*S,-h*0.9);
-    ctx.quadraticCurveTo(0,-h*1.02,2.5*S,-h*0.9);
-    ctx.quadraticCurveTo(8*S,-h*0.45,0,0);
-    ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.beginPath();
-    ctx.ellipse(-2.4*S,-h*0.55,1.4*S,h*0.2,0.12,0,TAU);ctx.fill();
-    ctx.strokeStyle='#5F9B3A';ctx.lineWidth=3*S;ctx.lineCap='round';
-    ctx.beginPath();ctx.moveTo(0,-h*0.88);ctx.lineTo(3*S,-h*1.12);ctx.stroke();
-    ctx.fillStyle='#78B84A';ctx.beginPath();
-    ctx.ellipse(0.5*S,-h*0.9,4*S,2*S,-0.4,0,TAU);ctx.fill();
-    ctx.restore();
+    const cx=sx+dx+3*S, H=h*1.8, sway=Math.sin(clock*1.9+i)*0.09;
+    const pep=()=>{
+      ctx.save();ctx.translate(cx,groundY-h+H);ctx.rotate(sway);
+      const g=ctx.createLinearGradient(-7*S,0,7*S,0);
+      g.addColorStop(0,'#8E0F09');g.addColorStop(0.42,'#E01F16');g.addColorStop(1,'#FF6A4E');
+      ctx.fillStyle=g;ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(-8.5*S,-H*0.42,-2.6*S,-H*0.88);
+      ctx.quadraticCurveTo(0,-H,2.6*S,-H*0.88);
+      ctx.quadraticCurveTo(8.5*S,-H*0.42,0,0);
+      ctx.closePath();ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.32)';ctx.beginPath();
+      ctx.ellipse(-2.5*S,-H*0.55,1.5*S,H*0.18,0.1,0,TAU);ctx.fill();
+      ctx.strokeStyle='#5F9B3A';ctx.lineWidth=3*S;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(0,-H*0.86);ctx.lineTo(3.4*S,-H*1.05);ctx.stroke();
+      ctx.fillStyle='#78B84A';ctx.beginPath();
+      ctx.ellipse(0.6*S,-H*0.88,4.2*S,2.1*S,-0.4,0,TAU);ctx.fill();
+      ctx.restore();
+    };
+    submerged(pep);
+    ctx.save();ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();pep();ctx.restore();
+    waterline(cx,7*S);
   });
 }
 
-/* Broth erupting off the surface, crown and all. */
+/* Shiitake with the stem lost under the surface. */
+function drawMushroom(sx,o){
+  const h=o.h*S,cx=sx+4*S,capR=15*S,stemW=7.5*S;
+  const stem=()=>{
+    const sg=ctx.createLinearGradient(cx-stemW,0,cx+stemW,0);
+    sg.addColorStop(0,'#B79A70');sg.addColorStop(0.45,'#F5EAD2');sg.addColorStop(1,'#AE9163');
+    ctx.fillStyle=sg;
+    ctx.fillRect(cx-stemW*0.5,groundY-h*0.6,stemW,h*0.9);
+  };
+  submerged(stem);
+  ctx.save();ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();stem();ctx.restore();
+  waterline(cx,stemW*1.3);
+  const cg=ctx.createLinearGradient(cx,groundY-h,cx,groundY-h*0.55);
+  cg.addColorStop(0,'#9A6540');cg.addColorStop(1,'#4E2E1C');
+  ctx.fillStyle=cg;ctx.beginPath();
+  ctx.ellipse(cx,groundY-h*0.66,capR,h*0.36,0,Math.PI,TAU);ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx,groundY-h*0.66,capR,h*0.1,0,0,Math.PI);ctx.fill();
+  ctx.strokeStyle='#F3E6CC';ctx.lineWidth=2.6*S;ctx.lineCap='round';
+  for(let k=0;k<3;k++){
+    const a=k*Math.PI/3;
+    ctx.beginPath();
+    ctx.moveTo(cx-Math.cos(a)*capR*0.42,groundY-h*0.79-Math.sin(a)*h*0.13);
+    ctx.lineTo(cx+Math.cos(a)*capR*0.42,groundY-h*0.79+Math.sin(a)*h*0.13);
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(255,90,31,0.28)';
+  ctx.beginPath();ctx.ellipse(cx,groundY-h*0.6,capR*0.98,h*0.09,0,0,Math.PI);ctx.fill();
+}
+
+/* Erupting broth already starts at the surface; it just wanted a waterline. */
 function drawSplash(sx,o){
   eachCol(o,(dx,h,i)=>{
-    const cx=sx+dx+3*S, t=clock*3+i*1.7, pulse=0.86+0.14*Math.sin(t);
-    const H=h*pulse;
+    const cx=sx+dx+3*S, t=clock*3+i*1.7, H=h*(0.86+0.14*Math.sin(t));
+    waterline(cx,11*S);
     ctx.save();
     ctx.shadowColor='rgba(255,90,31,0.8)';ctx.shadowBlur=14*S;
     const g=ctx.createLinearGradient(0,groundY,0,groundY-H);
@@ -1214,7 +1326,6 @@ function drawSplash(sx,o){
     ctx.quadraticCurveTo(cx,groundY-H*0.78,cx+3.5*S,groundY-H);
     ctx.quadraticCurveTo(cx+6*S,groundY-H*0.55,cx+9*S,groundY);
     ctx.closePath();ctx.fill();
-    // side arms of the crown
     for(const sd of[-1,1]){
       ctx.beginPath();
       ctx.moveTo(cx+sd*7*S,groundY);
@@ -1222,111 +1333,79 @@ function drawSplash(sx,o){
       ctx.quadraticCurveTo(cx+sd*8*S,groundY-H*0.34,cx+sd*4*S,groundY);
       ctx.closePath();ctx.fill();
     }
-    // flung droplets
     ctx.fillStyle='#FF7A2B';
     for(let d=0;d<3;d++){
-      const a=t*0.9+d*2.1, dx2=Math.cos(a)*13*S, dy2=-H*0.9-Math.abs(Math.sin(a))*7*S;
-      ctx.beginPath();ctx.arc(cx+dx2,groundY+dy2,(1.8+d*0.5)*S,0,TAU);ctx.fill();
+      const a=t*0.9+d*2.1;
+      ctx.beginPath();
+      ctx.arc(cx+Math.cos(a)*13*S,groundY-H*0.9-Math.abs(Math.sin(a))*7*S,(1.8+d*0.5)*S,0,TAU);
+      ctx.fill();
     }
     ctx.restore();
   });
 }
 
-/* Shiitake, star-scored cap. Tall obstacle, so it needs a real jump. */
-function drawMushroom(sx,o){
-  const h=o.h*S,cx=sx+4*S,capR=15*S,stemW=7*S;
-  const sg=ctx.createLinearGradient(cx-stemW,0,cx+stemW,0);
-  sg.addColorStop(0,'#C9B189');sg.addColorStop(0.45,'#F5EAD2');sg.addColorStop(1,'#BFA477');
-  ctx.fillStyle=sg;ctx.beginPath();
-  if(ctx.roundRect)ctx.roundRect(cx-stemW*0.5,groundY-h*0.72,stemW,h*0.72,2.5*S);
-  else ctx.rect(cx-stemW*0.5,groundY-h*0.72,stemW,h*0.72);
-  ctx.fill();
-  const cg=ctx.createLinearGradient(cx,groundY-h,cx,groundY-h*0.6);
-  cg.addColorStop(0,'#8A5A3B');cg.addColorStop(1,'#4E2E1C');
-  ctx.fillStyle=cg;ctx.beginPath();
-  ctx.ellipse(cx,groundY-h*0.68,capR,h*0.34,0,Math.PI,TAU);ctx.fill();
-  ctx.beginPath();ctx.ellipse(cx,groundY-h*0.68,capR,h*0.1,0,0,Math.PI);ctx.fill();
-  // the cream star cut
-  ctx.strokeStyle='#F3E6CC';ctx.lineWidth=2.6*S;ctx.lineCap='round';
-  for(let k=0;k<3;k++){
-    const a=k*Math.PI/3;
-    ctx.beginPath();
-    ctx.moveTo(cx-Math.cos(a)*capR*0.42,groundY-h*0.8-Math.sin(a)*h*0.13);
-    ctx.lineTo(cx+Math.cos(a)*capR*0.42,groundY-h*0.8+Math.sin(a)*h*0.13);
-    ctx.stroke();
-  }
-  ctx.fillStyle='rgba(255,90,31,0.26)';
-  ctx.beginPath();ctx.ellipse(cx,groundY-h*0.62,capR*0.98,h*0.09,0,0,Math.PI);ctx.fill();
-}
-
-/* Fish balls: a heaped pile that reads instantly at speed. */
-function drawBalls(sx,o){
-  const wS=6*S,gap=9*S,h=o.h*S,n=Math.max(1,o.n);
-  for(let i=0;i<n;i++){
-    const x=sx+i*(wS+gap)+wS*0.5, rows=Math.max(2,Math.round(o.h/13)), br=h/(rows*1.28);
-    for(let rI=0;rI<rows;rI++){
-      const cnt=rI===rows-1?1:(rI===0?3:2), y=groundY-br-rI*br*1.24;
-      for(let c2=0;c2<cnt;c2++){
-        const bx=x+(cnt===1?0:cnt===3?(c2-1)*br*1.5:(c2?br*0.88:-br*0.88));
-        const g=ctx.createRadialGradient(bx-br*0.3,y-br*0.35,br*0.15,bx,y,br);
-        g.addColorStop(0,'#FFFCF2');g.addColorStop(1,'#CDB88E');
-        ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,y,br,0,TAU);ctx.fill();
-      }
-    }
-  }
-}
-
-/* A whole lobster rearing up out of the broth. Claws work as you approach,
-   which is the tell that it's a hazard and not something to grab. */
+/* One enormous claw breaking the surface, with the head as a dark shape
+   below it. Reads as something rising out of the pot at you rather than a
+   whole lobster improbably standing on the bottom. */
 function drawLobster(sx,o){
   const h=o.h*S,cx=sx+4*S;
-  const d=(o.u-wd), near=Math.max(0,1-Math.abs(d)/300);
-  const open=0.10+0.22*(0.5+0.5*Math.sin(clock*(3+near*7)+(o.ph||0)));
-  ctx.save();ctx.translate(cx,groundY);
-  // tail curling back into the pot
-  ctx.strokeStyle='#A8140C';ctx.lineWidth=7*S;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(-6*S,-2*S);
-  ctx.quadraticCurveTo(-13*S,-h*0.2,-7*S,-h*0.36);ctx.stroke();
-  // body
-  const g=ctx.createLinearGradient(0,-h,0,0);
-  g.addColorStop(0,'#FF6A4E');g.addColorStop(0.55,'#E01F16');g.addColorStop(1,'#8E0F09');
-  ctx.fillStyle=g;ctx.beginPath();
-  ctx.ellipse(0,-h*0.5,7.5*S,h*0.5,0,0,TAU);ctx.fill();
-  // segment ridges
-  ctx.strokeStyle='rgba(60,6,3,0.45)';ctx.lineWidth=1.2*S;
-  for(let i=1;i<4;i++){const y=-h*0.5+(i/4-0.5)*h*0.9;
-    ctx.beginPath();ctx.moveTo(-6*S,y);ctx.lineTo(6*S,y);ctx.stroke();}
-  // legs
-  ctx.strokeStyle='#C0180F';ctx.lineWidth=1.8*S;
-  for(let i=0;i<3;i++){const y=-h*0.22-i*h*0.13;
-    ctx.beginPath();ctx.moveTo(-5*S,y);ctx.lineTo(-11*S,y+5*S);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(5*S,y);ctx.lineTo(11*S,y+5*S);ctx.stroke();}
-  // claws, up top, snapping
-  ctx.translate(0,-h*0.94);
-  for(const side of[-1,1]){
-    ctx.save();ctx.translate(side*7*S,0);ctx.rotate(side*0.42);
-    ctx.strokeStyle='#C0180F';ctx.lineWidth=3.4*S;
-    ctx.beginPath();ctx.moveTo(0,4*S);ctx.lineTo(0,-6*S);ctx.stroke();
-    const cg=ctx.createLinearGradient(0,-6*S,0,-20*S);
-    cg.addColorStop(0,'#C0180F');cg.addColorStop(1,'#FF7A5E');
-    for(const jaw of[-1,1]){
-      ctx.save();ctx.rotate(jaw*open);
-      ctx.fillStyle=cg;ctx.beginPath();
-      ctx.moveTo(-2.4*S,-5*S);
-      ctx.quadraticCurveTo(jaw*9*S,-13*S,jaw*2*S,-19*S);
-      ctx.quadraticCurveTo(jaw*1*S,-11*S,2.4*S,-5*S);
-      ctx.closePath();ctx.fill();
-      ctx.restore();
+  const d=(o.u-wd), near=Math.max(0,1-Math.abs(d)/320);
+  const open=0.10+0.30*(0.5+0.5*Math.sin(clock*(2.6+near*7)+(o.ph||0)));
+  const bob=Math.sin(clock*1.5+(o.ph||0))*2.5*S;
+
+  // head and antennae, under the broth
+  submerged(()=>{
+    ctx.fillStyle='#8E0F09';
+    ctx.beginPath();ctx.ellipse(cx,groundY+16*S+bob,20*S,12*S,0,0,TAU);ctx.fill();
+    ctx.fillStyle='#2A0906';
+    ctx.beginPath();ctx.arc(cx+7*S,groundY+11*S+bob,3*S,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(cx-7*S,groundY+11*S+bob,3*S,0,TAU);ctx.fill();
+    ctx.strokeStyle='#C0180F';ctx.lineWidth=2.2*S;ctx.lineCap='round';
+    for(const sd of[-1,1]){
+      ctx.beginPath();ctx.moveTo(cx+sd*13*S,groundY+14*S+bob);
+      ctx.quadraticCurveTo(cx+sd*26*S,groundY+20*S+bob,cx+sd*30*S,groundY+34*S+bob);
+      ctx.stroke();
     }
+  });
+  waterline(cx,17*S);
+
+  ctx.save();ctx.translate(cx,groundY+bob*0.4);
+  // arm out of the water
+  const ag=ctx.createLinearGradient(0,0,0,-h*0.55);
+  ag.addColorStop(0,'#8E0F09');ag.addColorStop(1,'#D8241A');
+  ctx.strokeStyle=ag;ctx.lineWidth=8*S;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,4*S);
+  ctx.quadraticCurveTo(-4*S,-h*0.3,0,-h*0.55);ctx.stroke();
+  // elbow knuckle
+  ctx.fillStyle='#C0180F';ctx.beginPath();
+  ctx.ellipse(0,-h*0.55,6*S,5*S,0,0,TAU);ctx.fill();
+
+  // the claw itself, oversized
+  ctx.translate(0,-h*0.58);
+  const cg=ctx.createLinearGradient(-12*S,0,12*S,-h*0.4);
+  cg.addColorStop(0,'#A31309');cg.addColorStop(0.5,'#E8291D');cg.addColorStop(1,'#FF8266');
+  for(const jaw of[-1,1]){
+    ctx.save();ctx.rotate(jaw*open);
+    ctx.fillStyle=cg;
+    ctx.beginPath();
+    ctx.moveTo(-3*S,2*S);
+    ctx.quadraticCurveTo(jaw*15*S,-h*0.14,jaw*11*S,-h*0.34);
+    ctx.quadraticCurveTo(jaw*7*S,-h*0.44,jaw*2.5*S,-h*0.42);
+    ctx.quadraticCurveTo(jaw*3*S,-h*0.2,3*S,2*S);
+    ctx.closePath();ctx.fill();
+    // serrated inner edge
+    ctx.strokeStyle='rgba(255,214,200,0.75)';ctx.lineWidth=1.3*S;
+    ctx.beginPath();
+    for(let k=0;k<4;k++){
+      const t2=k/4;
+      ctx.moveTo(jaw*(2.5+t2*2)*S,-h*(0.08+t2*0.28));
+      ctx.lineTo(jaw*(5.5+t2*2)*S,-h*(0.10+t2*0.28));
+    }
+    ctx.stroke();
     ctx.restore();
   }
-  // eyes and antennae
-  ctx.strokeStyle='#FFC9BC';ctx.lineWidth=1.1*S;
-  ctx.beginPath();ctx.moveTo(-2*S,-2*S);ctx.lineTo(-7*S,-14*S);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(2*S,-2*S);ctx.lineTo(7*S,-14*S);ctx.stroke();
-  ctx.fillStyle='#2A0906';
-  ctx.beginPath();ctx.arc(-2.6*S,1*S,1.7*S,0,TAU);ctx.fill();
-  ctx.beginPath();ctx.arc(2.6*S,1*S,1.7*S,0,TAU);ctx.fill();
+  ctx.fillStyle='rgba(255,140,110,0.45)';
+  ctx.beginPath();ctx.ellipse(-4*S,-h*0.12,3.5*S,7*S,0.2,0,TAU);ctx.fill();
   ctx.restore();
 }
 
@@ -1528,7 +1607,8 @@ function drawDumpling(){
 
   const sm=shownM();
   if(sm>=800)drawHelmet(px,py-r*0.92+hop,r);
-  if(sm>=BOOST_AT)drawThrust(px,py-r*0.7+hop,r);
+  if(sm>=4000)drawRocket(px,py-r*0.9+hop,r);
+  else if(sm>=BOOST_AT)drawThrust(px,py-r*0.7+hop,r);
 
   if(grounded&&!grab){ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();
     ctx.ellipse(px,groundY-1*S,r*0.85,r*0.2,0,0,TAU);ctx.fill();}
@@ -1573,6 +1653,65 @@ function drawHelmet(cx,cy,r){
   ctx.fillStyle=(Math.floor(clock*2)%2)?'#7FD46A':'rgba(127,212,106,0.35)';
   ctx.beginPath();ctx.arc(hx-R*0.92,hy+R*0.08,R*0.08,0,TAU);ctx.fill();
   ctx.restore();
+}
+
+/* Firepot orbit, from 4000m: the dumpling stops running and starts riding.
+   Layered back to front — exhaust, rear fins, hull, nose cone, porthole,
+   then the highlight — so it reads as a solid object under the dumpling
+   rather than a decal behind it. */
+function drawRocket(cx,cy,r){
+  const wob=Math.sin(clock*7)*1.4*S, f=0.7+0.3*Math.sin(clock*40);
+  ctx.save();ctx.translate(cx,cy+r*0.66+wob);
+
+  // 1. exhaust
+  ctx.shadowColor='rgba(255,140,50,0.95)';ctx.shadowBlur=22*S;
+  ctx.fillStyle='#FF7A2B';ctx.beginPath();
+  ctx.moveTo(-r*0.95,-r*0.34);
+  ctx.quadraticCurveTo(-r*(2.6+1.1*f),0,-r*0.95,r*0.34);
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='#FFE0A0';ctx.beginPath();
+  ctx.moveTo(-r*0.95,-r*0.17);
+  ctx.quadraticCurveTo(-r*(1.5+0.6*f),0,-r*0.95,r*0.17);
+  ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+
+  // 2. rear fins
+  ctx.fillStyle='#B8231A';
+  for(const sd of[-1,1]){
+    ctx.beginPath();
+    ctx.moveTo(-r*0.55,sd*r*0.22);
+    ctx.lineTo(-r*1.05,sd*r*0.86);
+    ctx.lineTo(-r*0.2,sd*r*0.5);
+    ctx.closePath();ctx.fill();
+  }
+
+  // 3. hull
+  const hull=ctx.createLinearGradient(0,-r*0.5,0,r*0.5);
+  hull.addColorStop(0,'#FFFDF6');hull.addColorStop(0.55,'#E7DCC6');hull.addColorStop(1,'#9E9179');
+  ctx.fillStyle=hull;ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(-r*0.95,-r*0.42,r*1.75,r*0.84,r*0.26);
+  else ctx.rect(-r*0.95,-r*0.42,r*1.75,r*0.84);
+  ctx.fill();
+
+  // 4. nose cone
+  ctx.fillStyle='#E0271C';ctx.beginPath();
+  ctx.moveTo(r*0.72,-r*0.42);
+  ctx.quadraticCurveTo(r*1.55,0,r*0.72,r*0.42);
+  ctx.closePath();ctx.fill();
+
+  // 5. porthole and a stripe
+  ctx.fillStyle='#7FB6D6';ctx.beginPath();ctx.arc(r*0.12,0,r*0.2,0,TAU);ctx.fill();
+  ctx.strokeStyle='#8E93A8';ctx.lineWidth=1.6*S;ctx.stroke();
+  ctx.fillStyle='rgba(224,39,28,0.85)';ctx.fillRect(-r*0.62,-r*0.42,r*0.16,r*0.84);
+
+  // 6. highlight
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.beginPath();ctx.ellipse(-r*0.1,-r*0.27,r*0.4,r*0.08,0,0,TAU);ctx.fill();
+  ctx.restore();
+
+  if(Math.random()<0.7)parts.push({x:cx-r*2.2,y:cy+r*0.66+(Math.random()-0.5)*r*0.6,
+    vx:-(280+Math.random()*220)*S,vy:(Math.random()-0.5)*70*S,
+    r:(1.8+Math.random()*3)*S,life:0.75,col:'#FF9A3C'});
 }
 
 /* Escape velocity. Cosmetic only — nothing about the run gets faster. */
@@ -1706,8 +1845,9 @@ function renderPerks(){
 }
 function netStatus(){
   $('netDot').classList.toggle('on',NET.ok);
-  $('netTxt').textContent=!CONFIG.API_URL?'Local only — no API_URL set'
-    :(NET.ok?'Network board connected':'Network unreachable — '+(NET.lastErr||'?'));
+  $('netTxt').textContent=!CONFIG.API_URL?'Local only \u2014 no API_URL set'
+    :(NET.ok?('Connected'+(NET.lastErr?' \u00b7 last error: '+NET.lastErr:''))
+            :'Unreachable \u2014 '+(NET.lastErr||'?'));
 }
 function openAdmin(){
   renderPerks();netStatus();
