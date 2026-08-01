@@ -154,6 +154,10 @@
   .seg button{background:rgba(247,233,206,.07);border:1px solid transparent;color:rgba(247,233,206,.55);
     font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:2px;cursor:pointer}
   .seg button.on{background:var(--ember);color:var(--void);border-color:var(--ember)}
+  .urlin{width:100%;background:rgba(247,233,206,.06);border:1px solid rgba(247,233,206,.18);
+    border-radius:2px;color:var(--dough);font-family:var(--mono);font-size:10.5px;
+    padding:9px 10px;margin-bottom:4px}
+  .urlin:focus{outline:0;border-color:var(--chili)}
   .netdot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#555;margin-right:6px}
   .netdot.on{background:var(--scallion);box-shadow:0 0 7px var(--scallion)}
 
@@ -412,6 +416,17 @@
     </div>
 
     <div class="sect">
+      <h4>Backend</h4>
+      <input class="urlin" id="adUrl" placeholder="https://script.google.com/macros/s/.../exec" spellcheck="false">
+      <div class="btnrow">
+        <button class="abtn go" id="adUrlSave">Save URL</button>
+        <button class="abtn" id="adUrlTest">Test</button>
+        <button class="abtn warn" id="adWipeLocal">Clear device scores</button>
+      </div>
+      <div class="adminnote" id="adUrlMsg" style="margin:8px 0 0;text-align:left"></div>
+    </div>
+
+    <div class="sect">
       <h4>Access</h4>
       <div class="btnrow"><button class="abtn" id="adPin">Change PIN</button>
         <button class="abtn" id="adPull">Refresh network board</button></div>
@@ -445,7 +460,8 @@ const CONFIG={
   BOARD_TITLE:'Tonight at Firepot',
   BOARD_SIZE:8,
   SEED_DAILY:true,
-  DEFAULT_BOARD:[]         // board starts empty; every row is earned
+  DEFAULT_BOARD:[],        // board starts empty; every row is earned
+  DATA_VERSION:2,          // bump to clear stale device scores on next load
 };
 
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.getElementById('stage');
@@ -721,12 +737,31 @@ let PERK={lives:0,inv:false,start:0};
 function perksOn(){return PERK.lives>0||PERK.inv||PERK.start>0;}
 function savePerk(){sSet('dd:perk',JSON.stringify(PERK));}
 async function loadAll(){
-  try{const b=await sGet('dd:board',null);if(b)BOARD=JSON.parse(b);}catch(e){}
+  /* Earlier builds shipped placeholder names (JLN, MEI, RAY...) that were
+     saved to the device. Bumping DATA_VERSION clears them once, on load, so
+     nobody has to dig through browser storage. */
+  const dv=parseInt(await sGet('dd:datav','0'),10)||0;
+  if(dv<CONFIG.DATA_VERSION){
+    await sSet('dd:board','[]');
+    await sSet('dd:datav',CONFIG.DATA_VERSION);
+    BOARD=[];
+  }else{
+    try{const b=await sGet('dd:board',null);if(b)BOARD=JSON.parse(b);}catch(e){}
+  }
   PIN=await sGet('dd:pin',CONFIG.DEFAULT_PIN);
   TITLE=await sGet('dd:title',CONFIG.BOARD_TITLE);
   best=parseInt(await sGet('dd:best','0'),10)||0;
   tutSeen=(await sGet('dd:tut','0'))==='1';
   portraitOK=(await sGet('dd:portraitOK','0'))==='1';
+  // A saved URL wins over the one baked into CONFIG, so a redeployed
+  // backend can be repointed from the staff panel alone.
+  const savedUrl=await sGet('dd:apiurl','');
+  const savedFor=await sGet('dd:apiurl:base','');
+  /* Honour a hand-entered URL, but drop it the moment CONFIG ships a different
+     one — otherwise a device that saved the old deployment stays pinned to it
+     forever, even after an update. */
+  if(savedUrl&&savedFor===CONFIG.API_URL)CONFIG.API_URL=savedUrl;
+  else if(savedUrl){await sSet('dd:apiurl','');await sSet('dd:apiurl:base','');}
   try{const p=await sGet('dd:perk',null);if(p)PERK=JSON.parse(p);}catch(e){}
   try{const g=await sGet('dd:ghost:'+SEED,null);
     if(g){ghost=JSON.parse(g);ghostLabel='your best';ghostOn=true;}}catch(e){}
@@ -810,7 +845,13 @@ function revive(o){
   for(let i=0;i<14;i++)burst(px,groundY-18*S,'#FFB03A');
 }
 function hideAll(){['sMenu','sTut','sOver','sInit','sPass','sPin','sAdmin'].forEach(i=>$(i).hidden=true);}
+/* Said once as the run starts. Rotates so it doesn't wear out on the fourth
+   go, and stays short enough not to wrap on a phone. */
+const OPENERS=['The pot\u2019s on. Run.','You\u2019re on the menu. Go.',
+               'Order in. Move.','They\u2019re heating up. Run.',
+               'Table 12 wants you. Go.','Somebody\u2019s hungry. Run.'];
 function play(){reset();state='play';hideAll();$('rotate').hidden=true;$('hud').hidden=false;
+  banner(OPENERS[Math.floor(Math.random()*OPENERS.length)]);
   $('ghostbar').classList.toggle('on',!!(ghost&&ghostOn));}
 function banner(t){const b=$('banner');b.textContent=t;b.classList.add('on');
   setTimeout(()=>b.classList.remove('on'),1400);}
@@ -1248,27 +1289,39 @@ function drawBalls(sx,o){
 /* A slice half in the broth, tipped up on its edge. */
 function drawMeat(sx,o){
   eachCol(o,(dx,h,i)=>{
-    const cx=sx+dx+3*S, w=15*S, H=h*1.5, tilt=-0.22+Math.sin(clock*1.4+i)*0.05;
+    /* A wide slab, roughly 1.6x the dumpling. Because it's tilted, the centre
+       is placed from the rotated bounding box rather than from H/2 — otherwise
+       the corner pokes above the hitbox and you die to something you looked
+       like you'd cleared. */
+    const cx=sx+dx+3*S, w=27*S, H=h*1.7, tilt=-0.2+Math.sin(clock*1.4+i)*0.05;
+    const half=Math.abs(w*Math.sin(tilt))+Math.abs(H*0.5*Math.cos(tilt));
     const slab=()=>{
-      ctx.save();ctx.translate(cx,groundY-h+H*0.5);ctx.rotate(tilt);
+      ctx.save();ctx.translate(cx,groundY-h+half);ctx.rotate(tilt);
       const g=ctx.createLinearGradient(-w,0,w,0);
       g.addColorStop(0,'#B33F42');g.addColorStop(0.45,'#E8827F');g.addColorStop(1,'#C05457');
       ctx.fillStyle=g;ctx.beginPath();
       if(ctx.roundRect)ctx.roundRect(-w,-H*0.5,w*2,H,w*0.42);
       else ctx.rect(-w,-H*0.5,w*2,H);
       ctx.fill();
-      ctx.strokeStyle='rgba(255,240,232,0.9)';ctx.lineWidth=2*S;ctx.lineCap='round';
-      for(let m2=-1;m2<=1;m2++){
+      // marbling, scaled with the bigger slab
+      ctx.strokeStyle='rgba(255,240,232,0.9)';ctx.lineWidth=2.6*S;ctx.lineCap='round';
+      for(let m2=-2;m2<=2;m2++){
         ctx.beginPath();
-        ctx.moveTo(m2*w*0.52-w*0.2,-H*0.24);
-        ctx.quadraticCurveTo(m2*w*0.52,0,m2*w*0.52+w*0.2,H*0.24);
+        ctx.moveTo(m2*w*0.33-w*0.14,-H*0.26);
+        ctx.quadraticCurveTo(m2*w*0.33,0,m2*w*0.33+w*0.14,H*0.26);
         ctx.stroke();
       }
+      // fat cap along the top edge
+      ctx.fillStyle='rgba(255,246,238,0.55)';
+      ctx.beginPath();
+      if(ctx.roundRect)ctx.roundRect(-w*0.92,-H*0.46,w*1.84,H*0.15,H*0.07);
+      else ctx.rect(-w*0.92,-H*0.46,w*1.84,H*0.15);
+      ctx.fill();
       ctx.restore();
     };
     submerged(slab);
     ctx.save();ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();slab();ctx.restore();
-    waterline(cx,w*1.05);
+    waterline(cx,w*0.95);
   });
 }
 
@@ -1910,9 +1963,49 @@ function netStatus(){
   $('netDot').classList.toggle('on',!stale);
 }
 function openAdmin(){
-  renderPerks();netStatus();
+  renderPerks();netStatus();$('adUrl').value=CONFIG.API_URL||'';
   hideAll();$('sAdmin').hidden=false;
 }
+$('adWipeLocal').onclick=async()=>{
+  const b=$('adWipeLocal');
+  if(b.dataset.armed){
+    BOARD=[];await sSet('dd:board','[]');
+    delete b.dataset.armed;b.textContent='Clear device scores';
+    $('adUrlMsg').textContent='This device\u2019s scores cleared.';
+    return;
+  }
+  b.dataset.armed='1';b.textContent='Tap again to confirm';
+  setTimeout(()=>{delete b.dataset.armed;b.textContent='Clear device scores';},3000);
+};
+$('adUrlSave').onclick=async()=>{
+  const v=$('adUrl').value.trim();
+  const msg=$('adUrlMsg');
+  if(v&&!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)){
+    msg.textContent='That doesn\u2019t look like an /exec URL. It should end in /exec.';return;
+  }
+  await sSet('dd:apiurl:base',CONFIG.API_URL);
+  CONFIG.API_URL=v;await sSet('dd:apiurl',v);
+  NET={ok:false,today:null,all:null,lastErr:'',ver:0};
+  msg.textContent=v?'Saved. Now press Test.':'Cleared \u2014 running local only.';
+};
+$('adUrlTest').onclick=async()=>{
+  const msg=$('adUrlMsg');
+  if(!CONFIG.API_URL){msg.textContent='No URL set.';return;}
+  msg.textContent='Testing\u2026';
+  try{
+    const d=await jsonp({a:'ping'});
+    if(!d||!d.ok){msg.textContent='Reached it, but it refused: '+((d&&d.error)||'?')
+      +(d&&d.error==='bad key'?' \u2014 SECRET in the script must equal '+CONFIG.API_KEY:'');return;}
+    NET.ok=true;NET.ver=d.v||0;
+    msg.textContent=(d.v>=NEED_API)
+      ? 'Connected \u00b7 backend v'+d.v+' \u2014 current. Scores will save.'
+      : 'Connected, but this URL serves OLD code (no version stamp). '
+        +'In Apps Script: Deploy \u203a Manage deployments \u203a pencil \u203a Version: New version.';
+    netStatus();
+  }catch(e){
+    msg.textContent='Could not reach it. Check the URL, and that access is set to "Anyone".';
+  }
+};
 $('adPull').onclick=async()=>{
   const b=$('adPull');b.textContent='Refreshing…';
   NET.today=null;NET.all=null;
