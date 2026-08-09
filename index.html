@@ -542,6 +542,10 @@ function wallCount(m,r){
   if(R<0.58+0.12*t)return 2;
   return 1;
 }
+/* Two fish balls side by side sat almost on top of each other and read as one
+   confusing blob. They're spheres, so a single big one is clearer at speed —
+   groups stay for the shapes that tile properly. */
+function groupFor(kind,w){return kind==='balls'?1:w;}
 
 /* Obstacle mix. Chopsticks are 10% of obstacles at 500m rising to 30% at
    4000m, so the game stays mostly about jumping. Boss mode at 2000m folds in
@@ -611,9 +615,11 @@ function buildCourse(seed){
 
     if(t==='low'){
       const w=wallCount(m,r),wid=w*6+(w-1)*9,h=26+r()*12;
-      out.push({u:u,t:'low',n:w,w:wid,h:h,ceil:1e5,kind:lowKind(m,r)});
-      addPods(pods,u,wid,h,w,r);
-      const e0=u+wid; u+=gap(wid,92,138); gapPods(pods,e0,u,r);
+      const lk=lowKind(m,r), gn=groupFor(lk,w);
+      const gwid=gn===w?wid:(gn*6+(gn-1)*9);
+      out.push({u:u,t:'low',n:gn,w:gwid,h:h,ceil:1e5,kind:lk});
+      addPods(pods,u,gwid,h,gn,r);
+      const e0=u+gwid; u+=gap(gwid,92,138); gapPods(pods,e0,u,r);
     }
     else if(t==='tall'){
       const h=54+r()*16;
@@ -764,7 +770,9 @@ async function loadAll(){
   else if(savedUrl){await sSet('dd:apiurl','');await sSet('dd:apiurl:base','');}
   try{const p=await sGet('dd:perk',null);if(p)PERK=JSON.parse(p);}catch(e){}
   try{const g=await sGet('dd:ghost:'+SEED,null);
-    if(g){ghost=JSON.parse(g);ghostLabel='your best';ghostOn=true;}}catch(e){}
+    // Loaded but not switched on. A translucent shape trailing you by default
+    // reads as a rendering fault, not a feature — opt in from the menu.
+    if(g){ghost=JSON.parse(g);ghostLabel='your best';}}catch(e){}
   syncGhostBtn();
   if(CONFIG.API_URL)netTop('daily');
 }
@@ -812,7 +820,7 @@ let grab=null,pass=null,livesLeft=0,invuln=0,cheated=false,boardTab='today';
 const HEATS=[[0,'Simmer'],[250,'Boil'],[500,'Rolling boil'],[1000,'Volcanic'],
              [1500,'Orbit'],[4000,'Deep space']];
 /* Shown against boosted distance so they land where the player sees them. */
-const MILES=[[250,'Full steam'],[750,'Full boil ahead!'],
+const MILES=[[250,'Full steam ahead'],[750,'Full boil ahead!'],
              [1500,'We have liftoff!'],[2500,'Escape velocity'],
              [4000,'Firepot orbit'],[10000,'To brothfinity & beyond']];
 function heatName(m){let n='Simmer';for(const h of HEATS)if(m>=h[0])n=h[1];return n;}
@@ -868,7 +876,7 @@ function die(by,o){
   const m=shownM(),isPB=score>best&&!cheated;
   if(isPB){best=score;sSet('dd:best',best);
     sSet('dd:ghost:'+SEED,JSON.stringify({score:score,ys:rec}));
-    ghost={score:score,ys:rec};ghostLabel='your best';syncGhostBtn();}
+    ghost={score:score,ys:rec};ghostLabel='your best';syncGhostBtn();}   // stays off
   $('oScore').textContent=score;
   $('oDist').textContent=m.toLocaleString()+'m · '+pods+' caught · '+heatName(m);
   $('oPB').hidden=!isPB;
@@ -1286,42 +1294,57 @@ function drawBalls(sx,o){
   });
 }
 
-/* A slice half in the broth, tipped up on its edge. */
+/* A stack of slices rising out of the broth. Layers are drawn back to front
+   with the rear ones darker, so the pile has depth instead of reading as one
+   flat card. The bottom layers are deliberately below the waterline — the
+   stack starts in the pot and grows out of it. */
 function drawMeat(sx,o){
   eachCol(o,(dx,h,i)=>{
-    /* A wide slab, roughly 1.6x the dumpling. Because it's tilted, the centre
-       is placed from the rotated bounding box rather than from H/2 — otherwise
-       the corner pokes above the hitbox and you die to something you looked
-       like you'd cleared. */
-    const cx=sx+dx+3*S, w=27*S, H=h*1.7, tilt=-0.2+Math.sin(clock*1.4+i)*0.05;
-    const half=Math.abs(w*Math.sin(tilt))+Math.abs(H*0.5*Math.cos(tilt));
-    const slab=()=>{
-      ctx.save();ctx.translate(cx,groundY-h+half);ctx.rotate(tilt);
-      const g=ctx.createLinearGradient(-w,0,w,0);
-      g.addColorStop(0,'#B33F42');g.addColorStop(0.45,'#E8827F');g.addColorStop(1,'#C05457');
+    const cx=sx+dx+3*S;
+    const layers=Math.max(4,Math.round(o.h/7));
+    const W0=30*S;                        // widest slice, ~1.8x the dumpling
+    const under=3;                        // layers hidden under the surface
+    const step=(h*S)/(layers-under);      // vertical spacing, so the top lands at h
+
+    const slice=(k)=>{
+      const t=k/(layers-1);
+      const y=groundY-(k-under)*step;
+      const w=W0*(1-t*0.26);
+      const th=Math.max(5*S,step*1.55);
+      const lean=(-0.16+t*0.1)+Math.sin(clock*1.2+i+k*0.5)*0.03;
+      const shade=0.55+0.45*t;            // rear slices sit in shadow
+      ctx.save();ctx.translate(cx+(t-0.5)*5*S,y);ctx.rotate(lean);
+      const g=ctx.createLinearGradient(-w,-th,w,th);
+      g.addColorStop(0,'rgb('+Math.round(120*shade)+','+Math.round(38*shade)+','+Math.round(40*shade)+')');
+      g.addColorStop(0.42,'rgb('+Math.round(232*shade)+','+Math.round(130*shade)+','+Math.round(127*shade)+')');
+      g.addColorStop(1,'rgb('+Math.round(168*shade)+','+Math.round(64*shade)+','+Math.round(66*shade)+')');
       ctx.fillStyle=g;ctx.beginPath();
-      if(ctx.roundRect)ctx.roundRect(-w,-H*0.5,w*2,H,w*0.42);
-      else ctx.rect(-w,-H*0.5,w*2,H);
+      if(ctx.roundRect)ctx.roundRect(-w,-th*0.5,w*2,th,th*0.48);
+      else ctx.rect(-w,-th*0.5,w*2,th);
       ctx.fill();
-      // marbling, scaled with the bigger slab
-      ctx.strokeStyle='rgba(255,240,232,0.9)';ctx.lineWidth=2.6*S;ctx.lineCap='round';
+      // marbling
+      ctx.strokeStyle='rgba(255,242,236,'+(0.30+0.5*t)+')';
+      ctx.lineWidth=1.9*S;ctx.lineCap='round';
       for(let m2=-2;m2<=2;m2++){
         ctx.beginPath();
-        ctx.moveTo(m2*w*0.33-w*0.14,-H*0.26);
-        ctx.quadraticCurveTo(m2*w*0.33,0,m2*w*0.33+w*0.14,H*0.26);
+        ctx.moveTo(m2*w*0.33-w*0.1,-th*0.2);
+        ctx.quadraticCurveTo(m2*w*0.33,0,m2*w*0.33+w*0.1,th*0.2);
         ctx.stroke();
       }
-      // fat cap along the top edge
-      ctx.fillStyle='rgba(255,246,238,0.55)';
+      // fat rim along the leading edge
+      ctx.fillStyle='rgba(255,248,242,'+(0.22+0.32*t)+')';
       ctx.beginPath();
-      if(ctx.roundRect)ctx.roundRect(-w*0.92,-H*0.46,w*1.84,H*0.15,H*0.07);
-      else ctx.rect(-w*0.92,-H*0.46,w*1.84,H*0.15);
+      if(ctx.roundRect)ctx.roundRect(-w*0.94,-th*0.46,w*1.88,th*0.2,th*0.1);
+      else ctx.rect(-w*0.94,-th*0.46,w*1.88,th*0.2);
       ctx.fill();
       ctx.restore();
     };
-    submerged(slab);
-    ctx.save();ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();slab();ctx.restore();
-    waterline(cx,w*0.95);
+
+    submerged(()=>{for(let k=0;k<under;k++)slice(k);});
+    ctx.save();ctx.beginPath();ctx.rect(-40,0,W+80,groundY);ctx.clip();
+    for(let k=0;k<layers;k++)slice(k);     // clipped, so the pile emerges
+    ctx.restore();
+    waterline(cx,W0*0.95);
   });
 }
 
@@ -1416,105 +1439,106 @@ function drawSplash(sx,o){
   });
 }
 
-/* One enormous claw breaking the surface, with the head as a dark mass below
-   it. Proportions are keyed to the exposed height so the animal always reads
-   as the biggest thing in the pot — a lobster smaller than a fish ball was
-   the thing that looked wrong. Only the claw is a hazard; the head is scenery
-   under the broth. */
+/* A claw the size of the whole animal, on an arm that runs down into the pot.
+   The claw alone is wider than the dumpling; the head sits under the surface
+   behind it. Everything is keyed to the exposed height so it scales together.
+   Only the claw is a hazard — the head is scenery below the waterline. */
 function drawLobster(sx,o){
   const h=o.h*S,cx=sx+4*S;
-  const d=(o.u-wd), near=Math.max(0,1-Math.abs(d)/320);
-  const open=0.12+0.32*(0.5+0.5*Math.sin(clock*(2.6+near*7)+(o.ph||0)));
-  const bob=Math.sin(clock*1.5+(o.ph||0))*3*S;
-  // Keyed so the head is always the widest thing in the pot. A lobster that
-  // measured smaller than a fish ball was what looked wrong.
-  const HW=h*0.82;
+  const d=(o.u-wd), near=Math.max(0,1-Math.abs(d)/340);
+  const open=0.10+0.34*(0.5+0.5*Math.sin(clock*(2.4+near*7)+(o.ph||0)));
+  const bob=Math.sin(clock*1.4+(o.ph||0))*3*S;
+  const HW=h*0.85;
 
-  // head, eyes, antennae and legs — all below the waterline
   submerged(()=>{
-    const g=ctx.createLinearGradient(cx,groundY,cx,groundY+HW*1.5);
-    g.addColorStop(0,'#D8241A');g.addColorStop(1,'#5E0A05');
+    const g=ctx.createLinearGradient(cx,groundY,cx,groundY+HW*1.6);
+    g.addColorStop(0,'#D8241A');g.addColorStop(1,'#4E0803');
     ctx.fillStyle=g;
-    ctx.beginPath();ctx.ellipse(cx,groundY+HW*0.72+bob,HW,HW*0.66,0,0,TAU);ctx.fill();
-    // carapace ridges
-    ctx.strokeStyle='rgba(50,5,3,0.5)';ctx.lineWidth=2*S;
-    for(let i=1;i<4;i++){
+    ctx.beginPath();ctx.ellipse(cx-HW*0.15,groundY+HW*0.8+bob,HW,HW*0.7,0,0,TAU);ctx.fill();
+    ctx.strokeStyle='rgba(45,4,2,0.5)';ctx.lineWidth=2.4*S;
+    for(let k=1;k<4;k++){
       ctx.beginPath();
-      ctx.ellipse(cx,groundY+HW*0.72+bob,HW*(1-i*0.2),HW*0.66*(1-i*0.2),0,Math.PI*0.15,Math.PI*0.85);
+      ctx.ellipse(cx-HW*0.15,groundY+HW*0.8+bob,HW*(1-k*0.19),HW*0.7*(1-k*0.19),0,Math.PI*0.1,Math.PI*0.9);
       ctx.stroke();
     }
-    // eyes on stalks
-    ctx.strokeStyle='#C0180F';ctx.lineWidth=3*S;ctx.lineCap='round';
+    ctx.strokeStyle='#C0180F';ctx.lineWidth=3.4*S;ctx.lineCap='round';
     for(const sd of[-1,1]){
       ctx.beginPath();
-      ctx.moveTo(cx+sd*HW*0.34,groundY+HW*0.3+bob);
-      ctx.lineTo(cx+sd*HW*0.5,groundY+HW*0.02+bob);ctx.stroke();
+      ctx.moveTo(cx-HW*0.15+sd*HW*0.34,groundY+HW*0.34+bob);
+      ctx.lineTo(cx-HW*0.15+sd*HW*0.5,groundY+HW*0.04+bob);ctx.stroke();
       ctx.fillStyle='#2A0906';ctx.beginPath();
-      ctx.arc(cx+sd*HW*0.5,groundY+HW*0.02+bob,HW*0.13,0,TAU);ctx.fill();
+      ctx.arc(cx-HW*0.15+sd*HW*0.5,groundY+HW*0.04+bob,HW*0.12,0,TAU);ctx.fill();
     }
-    // antennae sweeping back
-    ctx.strokeStyle='#C0180F';ctx.lineWidth=2.4*S;
+    ctx.strokeStyle='#C0180F';ctx.lineWidth=2.6*S;
     for(const sd of[-1,1]){
-      ctx.beginPath();ctx.moveTo(cx+sd*HW*0.55,groundY+HW*0.5+bob);
-      ctx.quadraticCurveTo(cx+sd*HW*1.7,groundY+HW*0.9+bob,cx+sd*HW*2.1,groundY+HW*2.1+bob);
+      ctx.beginPath();ctx.moveTo(cx-HW*0.15+sd*HW*0.55,groundY+HW*0.55+bob);
+      ctx.quadraticCurveTo(cx+sd*HW*1.8,groundY+HW*1.0+bob,cx+sd*HW*2.2,groundY+HW*2.3+bob);
       ctx.stroke();
     }
-    // walking legs
-    ctx.lineWidth=2*S;
-    for(let i=0;i<3;i++){
-      const y=groundY+HW*(0.7+i*0.28)+bob;
+    ctx.lineWidth=2.2*S;
+    for(let k=0;k<3;k++){
+      const y=groundY+HW*(0.8+k*0.3)+bob;
       for(const sd of[-1,1]){
-        ctx.beginPath();ctx.moveTo(cx+sd*HW*0.8,y);
-        ctx.lineTo(cx+sd*HW*1.45,y+HW*0.34);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(cx-HW*0.15+sd*HW*0.82,y);
+        ctx.lineTo(cx-HW*0.15+sd*HW*1.5,y+HW*0.36);ctx.stroke();
       }
     }
   });
-  waterline(cx,HW*0.95);
+  waterline(cx,HW*0.9);
 
-  ctx.save();ctx.translate(cx,groundY+bob*0.35);
-  // the arm coming up out of the broth
-  /* A stub of an arm, because the claw is the point. ARM and CH always sum to
-     the full exposed height, so the tip lands exactly where collision expects
-     it however the proportions are pushed. */
-  const ARM=0.26, CH=h*(1-ARM);
-  const ag=ctx.createLinearGradient(0,0,0,-h*ARM);
-  ag.addColorStop(0,'#7C0C06');ag.addColorStop(1,'#D8241A');
-  ctx.strokeStyle=ag;ctx.lineWidth=h*0.22;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(0,6*S);
-  ctx.quadraticCurveTo(-h*0.08,-h*ARM*0.5,0,-h*ARM*0.92);ctx.stroke();
-  ctx.fillStyle='#C0180F';ctx.beginPath();
-  ctx.ellipse(0,-h*ARM*0.92,h*0.15,h*0.12,0,0,TAU);ctx.fill();
+  /* The arm starts below the surface so the claw is clearly attached to
+     something in the pot rather than floating. */
+  const ARM=0.2, CH=h*(1-ARM);
+  ctx.save();
+  ctx.beginPath();ctx.rect(-40,0,W+80,groundY+26*S);ctx.clip();
+  ctx.translate(cx,groundY+bob*0.3);
+  const ag=ctx.createLinearGradient(0,26*S,0,-h*ARM);
+  ag.addColorStop(0,'#5E0A05');ag.addColorStop(0.5,'#A31309');ag.addColorStop(1,'#E02A1E');
+  ctx.strokeStyle=ag;ctx.lineWidth=h*0.3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-h*0.06,26*S);
+  ctx.quadraticCurveTo(-h*0.12,-h*ARM*0.4,0,-h*ARM*0.95);ctx.stroke();
+  ctx.restore();
 
-  ctx.translate(0,-h*ARM);
-  const CW=h*0.9;
+  ctx.save();ctx.translate(cx,groundY+bob*0.3-h*ARM);
+  // knuckle
+  ctx.fillStyle='#B01309';ctx.beginPath();
+  ctx.ellipse(0,0,h*0.19,h*0.15,0,0,TAU);ctx.fill();
+
+  const CW=h*1.05;                         // claw wider than the dumpling
   const cg=ctx.createLinearGradient(-CW,0,CW,-CH);
-  cg.addColorStop(0,'#8E0F09');cg.addColorStop(0.45,'#E8291D');cg.addColorStop(1,'#FF8266');
+  cg.addColorStop(0,'#7C0C06');cg.addColorStop(0.45,'#E8291D');cg.addColorStop(1,'#FF9077');
   for(const jaw of[-1,1]){
     ctx.save();ctx.rotate(jaw*open);
     ctx.fillStyle=cg;
     ctx.beginPath();
-    ctx.moveTo(-CW*0.2,4*S);
-    /* Tip runs slightly past CH so that even at full spread the drawn claw
-       still covers the collision height. Art shorter than its hitbox is the
-       unfair direction. */
-    ctx.quadraticCurveTo(jaw*CW*1.5,-CH*0.34,jaw*CW*1.08,-CH*0.9);
-    ctx.quadraticCurveTo(jaw*CW*0.74,-CH*1.18,jaw*CW*0.24,-CH*1.11);
-    ctx.quadraticCurveTo(jaw*CW*0.3,-CH*0.42,CW*0.2,4*S);
+    ctx.moveTo(-CW*0.14,6*S);
+    ctx.quadraticCurveTo(jaw*CW*0.92,-CH*0.24,jaw*CW*0.82,-CH*0.72);
+    /* Tip overshoots CH so the drawn claw still covers its collision height
+       even at full spread. Art shorter than its hitbox is the unfair way. */
+    ctx.quadraticCurveTo(jaw*CW*0.72,-CH*1.12,jaw*CW*0.2,-CH*1.16);
+    ctx.quadraticCurveTo(jaw*CW*0.3,-CH*0.44,CW*0.14,6*S);
     ctx.closePath();ctx.fill();
-    ctx.strokeStyle='rgba(120,12,6,0.55)';ctx.lineWidth=1.6*S;ctx.stroke();
+    ctx.strokeStyle='rgba(96,8,4,0.6)';ctx.lineWidth=2*S;ctx.stroke();
+    // pebbled shell
+    ctx.fillStyle='rgba(255,180,160,0.3)';
+    for(let k=0;k<7;k++){
+      const t2=k/7;
+      ctx.beginPath();
+      ctx.arc(jaw*CW*(0.34+t2*0.32),-CH*(0.24+t2*0.6),CH*0.045,0,TAU);ctx.fill();
+    }
     // serrated inner edge
-    ctx.strokeStyle='rgba(255,220,206,0.8)';ctx.lineWidth=1.6*S;
+    ctx.strokeStyle='rgba(255,226,214,0.85)';ctx.lineWidth=2*S;
     ctx.beginPath();
-    for(let k=0;k<5;k++){
-      const t2=k/5;
-      ctx.moveTo(jaw*CW*(0.24+t2*0.16),-CH*(0.16+t2*0.6));
-      ctx.lineTo(jaw*CW*(0.52+t2*0.2),-CH*(0.2+t2*0.6));
+    for(let k=0;k<6;k++){
+      const t2=k/6;
+      ctx.moveTo(jaw*CW*(0.15+t2*0.1),-CH*(0.14+t2*0.72));
+      ctx.lineTo(jaw*CW*(0.34+t2*0.14),-CH*(0.18+t2*0.72));
     }
     ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle='rgba(255,150,120,0.45)';
-  ctx.beginPath();ctx.ellipse(-CW*0.3,-CH*0.2,CW*0.2,CH*0.26,0.2,0,TAU);ctx.fill();
+  ctx.fillStyle='rgba(255,160,132,0.4)';
+  ctx.beginPath();ctx.ellipse(-CW*0.2,-CH*0.3,CW*0.14,CH*0.3,0.16,0,TAU);ctx.fill();
   ctx.restore();
 }
 
